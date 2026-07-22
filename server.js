@@ -156,13 +156,10 @@ function buildHtml({ imageDataUrl, design, headline, overlayText, imageSequence,
 let browserPromise = null;
 function getBrowser() {
   if (!browserPromise) {
-    browserPromise = const browser = await chromium.launch({
-    headless: true,
-    args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox"
-    ]
-});
+    browserPromise = chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
   }
   return browserPromise;
 }
@@ -217,7 +214,11 @@ app.post("/render", async (req, res) => {
   }
 });
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({
+  ok: true,
+  service: "beleaf-render-service",
+  version: "1.1.0",
+}));
 
 app.listen(PORT, () => {
   console.log(`Beleaf render service listening on :${PORT}`);
