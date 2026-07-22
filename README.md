@@ -1,48 +1,43 @@
-# Beleaf Render Service
+# Beleaf Smart Layout Render Service v2.0.0
 
-Browser-based Thai typography renderer for Beleaf Workflow 3.
+Browser-based Thai typography and rule-based layout engine for Workflow 3.
 
-## Required filenames
+## What changed in v2
 
-Keep these exact names in the repository root:
+- Larger, rounded headline banner with shadow
+- Automatic headline and bubble font fitting
+- 4 layout presets: `hero`, `review`, `editorial`, `promotion`, plus `comparison`
+- Bubble placement around a central product-safe area
+- Up to 6 overlay bubbles
+- Keeps the existing `/render` request format, so the current n8n workflow remains compatible
+- Optional `outputWidth` and `outputHeight` fields; defaults to 1080 × 1080
+
+## Required files
+
+The repository root must contain exactly:
 
 - `Dockerfile`
 - `package.json`
 - `server.js`
 - `README.md`
 
-## Version alignment
+## Render.com
 
-This release pins both layers to Playwright `1.61.1`:
+Set environment variable:
 
-- Docker image: `mcr.microsoft.com/playwright:v1.61.1-jammy`
-- npm package: `playwright: 1.61.1`
+`RENDER_AUTH_TOKEN=<your existing token>`
 
-Do not change only one of them. The Docker image and npm package must remain on the same Playwright version.
-
-## Render environment variable
-
-Set:
-
-`RENDER_AUTH_TOKEN=<your secret token>`
-
-## Endpoints
-
-### Health check
+Deploy using Docker. After deployment, test:
 
 `GET /health`
 
 Expected response:
 
 ```json
-{
-  "ok": true,
-  "service": "beleaf-render-service",
-  "version": "1.1.0"
-}
+{"ok":true,"service":"beleaf-render-service","version":"2.0.0"}
 ```
 
-### Render
+## API
 
 `POST /render`
 
@@ -50,13 +45,44 @@ Header:
 
 `Authorization: Bearer <RENDER_AUTH_TOKEN>`
 
-The response is raw `image/png` binary.
+The request body remains compatible with v1:
 
-## Deploy update on Render
+```json
+{
+  "imageBase64": "...",
+  "imageMimeType": "image/jpeg",
+  "design": {},
+  "headline": "ข้อความพาดหัว",
+  "overlayText": ["ข้อความ 1", "ข้อความ 2"],
+  "imageSequence": 1,
+  "imageCount": 2
+}
+```
 
-1. Replace the four files in the GitHub repository with this package.
-2. Commit the changes.
-3. Render should deploy automatically.
-4. Wait until the deployment status is Live.
-5. Open `/health` and verify version `1.1.0`.
-6. Re-run the `Render Thai PNG` node in n8n.
+Optional dimensions:
+
+```json
+{
+  "outputWidth": 1080,
+  "outputHeight": 1080
+}
+```
+
+## Design Bible mapping
+
+The renderer reads either:
+
+- `design.designTemplate`, or
+- the sheet field `Design Template JSON`
+
+Recognized layout names:
+
+- `hero`
+- `review`
+- `editorial`
+- `promotion`
+- `comparison`
+- `center` maps to `hero`
+- `left` and `right` map to `review`
+
+This is a deterministic rule-based layout engine. It does not yet detect the exact product silhouette. It reserves the central image area and places text around it, which is much safer than the v1 corner-only placement.
