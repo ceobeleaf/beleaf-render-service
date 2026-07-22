@@ -156,7 +156,13 @@ function buildHtml({ imageDataUrl, design, headline, overlayText, imageSequence,
 let browserPromise = null;
 function getBrowser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch({ args: ["--no-sandbox"] });
+    browserPromise = const browser = await chromium.launch({
+    headless: true,
+    args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox"
+    ]
+});
   }
   return browserPromise;
 }
