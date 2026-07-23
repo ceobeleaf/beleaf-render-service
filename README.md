@@ -43,3 +43,10 @@ For P011, the resolved layout must be `floating` and profile layout ID should be
 - Pins `playwright` to exactly `1.46.0`, matching the Docker image browser binaries.
 - Avoids `networkidle` hangs caused by external Google Fonts.
 - Returns the full server-side stack in the JSON error response for debugging.
+
+
+## v3.3 Mobile legibility
+- Headline default increased with automatic fitting (48-64px).
+- Bubble text automatically fits by Thai/Unicode character count (30-42px).
+- Bubble width and padding increased for mobile readability.
+- Optional typography JSON keys: headlineFontSize, bubbleFontSize, bubbleFontWeight.

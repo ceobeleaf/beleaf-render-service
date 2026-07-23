@@ -6,7 +6,7 @@ app.use(express.json({ limit: '30mb' }));
 
 const PORT = process.env.PORT || 3000;
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
-const RENDER_VERSION = '3.2.0-playwright-runtime-fix';
+const RENDER_VERSION = '3.3.0-mobile-legibility-autofit';
 
 const GOOGLE_FONT_FAMILIES = [
   'Anuphan:wght@400;500;600;700;800;900',
@@ -37,6 +37,27 @@ function textColor(hex) {
   const {r,g,b}=hexToRgb(hex); const y=(0.299*r+0.587*g+0.114*b)/255;
   return y > .62 ? '#171717' : '#FFFFFF';
 }
+
+function textLength(value) { return Array.from(String(value || '').trim()).length; }
+function resolveHeadlineSize(text, typography = {}) {
+  const configured = Number(typography.headlineFontSize || typography.headlineSize || 0);
+  if (configured > 0) return Math.max(44, Math.min(configured, 76));
+  const len = textLength(text);
+  if (len <= 18) return 64;
+  if (len <= 28) return 60;
+  if (len <= 40) return 54;
+  return 48;
+}
+function resolveBubbleSize(text, typography = {}) {
+  const configured = Number(typography.bubbleFontSize || typography.bodyFontSize || 0);
+  if (configured > 0) return Math.max(30, Math.min(configured, 48));
+  const len = textLength(text);
+  if (len <= 10) return 42;
+  if (len <= 16) return 38;
+  if (len <= 24) return 34;
+  return 30;
+}
+
 function safeJson(value, fallback={}) {
   if (!value) return fallback;
   if (typeof value === 'object') return value;
@@ -150,12 +171,14 @@ function buildHtml(payload) {
   const bubbleText = n.bubble.textColor || '#3E2723';
   const maxCount = Math.min(Number(n.directives.bubbleMaxCount || n.bubble.maxCount || 3), 4);
   const positions = bubblePositions(n.structure);
-  const bubbleHtml = overlay.slice(0,maxCount).map((txt,i)=>
-    `<div class="bubble b${i+1}" style="${positions[i] || positions[positions.length-1]};background:${bubbleBg};color:${bubbleText};border-radius:${bubbleRadius};">${esc(txt)}</div>`
-  ).join('');
+  const bubbleHtml = overlay.slice(0,maxCount).map((txt,i)=> {
+    const size = resolveBubbleSize(txt, n.typography);
+    return `<div class="bubble b${i+1}" style="${positions[i] || positions[positions.length-1]};background:${bubbleBg};color:${bubbleText};border-radius:${bubbleRadius};font-size:${size}px;">${esc(txt)}</div>`;
+  }).join('');
   const elements = n.decoration.elements || n.template.decoration || [];
   const fontLinks = GOOGLE_FONT_FAMILIES.map(f=>`family=${f}`).join('&');
   const layoutRules = layoutCss(n.structure,n.bannerHeight,n.bannerPosition,n.alignment,n.productEmphasis);
+  const headlineSize = resolveHeadlineSize(payload.headline, n.typography);
   const bgPos = payload.imagePosition || n.design.imagePosition || 'center';
 
   return `<!doctype html><html><head><meta charset="utf-8">
@@ -169,9 +192,9 @@ function buildHtml(payload) {
   .vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.09),transparent 26%,transparent 72%,rgba(0,0,0,.14));pointer-events:none}
   .headline-card{position:absolute;z-index:20;display:flex;align-items:center;background:linear-gradient(135deg,${n.accent},${n.secondary});color:${accentText};box-shadow:0 14px 36px rgba(0,0,0,.20);overflow:hidden}
   .headline-card:after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,rgba(255,255,255,.19),transparent 36%,rgba(255,255,255,.08));pointer-events:none}
-  .headline{position:relative;z-index:2;width:100%;font-family:'${headlineFont}',sans-serif;font-size:56px;font-weight:${weight};line-height:1.08;letter-spacing:${n.typography.letterSpacing || '0'};text-wrap:balance;text-shadow:0 2px 1px rgba(0,0,0,.05)}
+  .headline{position:relative;z-index:2;width:100%;font-family:'${headlineFont}',sans-serif;font-size:${headlineSize}px;font-weight:${weight};line-height:1.08;letter-spacing:${n.typography.letterSpacing || '0'};text-wrap:balance;text-shadow:0 2px 1px rgba(0,0,0,.05)}
   .bubble-zone{position:absolute;inset:0;z-index:15}
-  .bubble{position:absolute;max-width:37%;padding:16px 22px;font-size:29px;font-weight:700;line-height:1.24;box-shadow:0 12px 28px rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(5px)}
+  .bubble{position:absolute;max-width:43%;padding:20px 28px;font-size:38px;font-weight:${Number(n.typography.bubbleFontWeight || n.typography.bodyWeight || 700)};line-height:1.18;box-shadow:0 12px 28px rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(5px)}
   .bubble:before{content:'';position:absolute;inset:3px;border-radius:inherit;border:1px solid rgba(255,255,255,.35);pointer-events:none}
   .deco{position:absolute;z-index:24;pointer-events:none}.sparkle{color:#fff;font-size:45px;text-shadow:0 4px 14px rgba(0,0,0,.3)}.s1{top:3%;right:4%}.s2{top:17%;left:3%;font-size:31px}.underline{left:12%;top:21%;width:32%;height:8px;border-radius:8px;background:var(--accent);transform:rotate(-2deg)}.dots{right:4%;bottom:3%;font-size:38px;color:var(--accent)}.leaf{right:4%;top:3%;font-size:70px;color:var(--accent);transform:rotate(-18deg)}
   .review-stars{display:none;position:absolute;right:5%;top:50%;transform:translateY(-50%);font-size:26px;letter-spacing:4px;color:#FFD45A;z-index:3}.promo-chip{display:none;position:absolute;right:4%;bottom:-22px;background:#fff;color:var(--accent);padding:9px 20px;border-radius:999px;font-size:22px;font-weight:800;box-shadow:0 9px 20px rgba(0,0,0,.2);z-index:3}
