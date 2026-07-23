@@ -6,7 +6,7 @@ app.use(express.json({ limit: '30mb' }));
 
 const PORT = process.env.PORT || 3000;
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
-const RENDER_VERSION = '3.1.0-creative-profile-priority-fix';
+const RENDER_VERSION = '3.2.0-playwright-runtime-fix';
 
 const GOOGLE_FONT_FAMILIES = [
   'Anuphan:wght@400;500;600;700;800;900',
@@ -184,7 +184,15 @@ function buildHtml(payload) {
 }
 
 let browserPromise;
-function getBrowser(){ if(!browserPromise) browserPromise=chromium.launch({args:['--no-sandbox','--disable-dev-shm-usage']}); return browserPromise; }
+function getBrowser(){
+  if(!browserPromise){
+    browserPromise=chromium.launch({
+      headless:true,
+      args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']
+    }).catch(err=>{ browserPromise=null; throw err; });
+  }
+  return browserPromise;
+}
 
 app.post('/render', async (req,res)=>{
   try{
@@ -197,8 +205,12 @@ app.post('/render', async (req,res)=>{
     const browser=await getBrowser();
     const page=await browser.newPage({viewport:{width:1080,height:1080},deviceScaleFactor:1});
     try{
-      await page.setContent(html,{waitUntil:'networkidle'});
-      await page.evaluate(async()=>{if(document.fonts?.ready) await document.fonts.ready});
+      await page.setContent(html,{waitUntil:'domcontentloaded',timeout:45000});
+      await page.evaluate(async()=>{
+        if(document.fonts?.ready){
+          await Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,8000))]);
+        }
+      });
       const buffer=await page.screenshot({type:'png'});
       const resolved = normalizeInput(body);
       res.set({
@@ -209,7 +221,11 @@ app.post('/render', async (req,res)=>{
       });
       res.send(buffer);
     }finally{await page.close();}
-  }catch(err){console.error(err);res.status(500).json({error:'RENDER_FAILED',message:String(err.message||err),version:RENDER_VERSION});}
+  }catch(err){
+    const message=String(err?.stack||err?.message||err);
+    console.error('[RENDER_FAILED]',message);
+    res.status(500).json({error:'RENDER_FAILED',message,version:RENDER_VERSION});
+  }
 });
 
 app.get('/health',(_req,res)=>res.json({ok:true,version:RENDER_VERSION,layouts:['banner_top','hero','floating','banner_left','corner','ribbon','diagonal','bottom_overlay','magazine','clinic','lifestyle','review','promotion','editorial']}));

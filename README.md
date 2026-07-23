@@ -38,3 +38,8 @@ Every PNG response includes headers:
 - `X-Beleaf-Creative-Profile`
 
 For P011, the resolved layout must be `floating` and profile layout ID should be `L007`.
+
+## v3.2 runtime fix
+- Pins `playwright` to exactly `1.46.0`, matching the Docker image browser binaries.
+- Avoids `networkidle` hangs caused by external Google Fonts.
+- Returns the full server-side stack in the JSON error response for debugging.
