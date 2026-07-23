@@ -1,13 +1,13 @@
 {
   "name": "beleaf-render-service",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "4.21.2",
-    "playwright": "1.61.1"
+    "express": "^4.19.2",
+    "playwright": "^1.46.0"
   }
 }

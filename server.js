@@ -1,6 +1,3 @@
-// Beleaf Smart Layout Render Service v2.0.0
-// Rule-based Thai typography/layout engine for n8n.
-
 const express = require('express');
 const { chromium } = require('playwright');
 
@@ -9,290 +6,183 @@ app.use(express.json({ limit: '30mb' }));
 
 const PORT = process.env.PORT || 3000;
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
-const VERSION = '2.0.0';
+const RENDER_VERSION = '3.0.0-premium-creative-engine';
 
 const GOOGLE_FONT_FAMILIES = [
-  'Anuphan:wght@400;600;700;800;900',
+  'Anuphan:wght@400;500;600;700;800;900',
   'IBM+Plex+Sans+Thai:wght@400;500;600;700',
-  'Sarabun:wght@400;500;600;700;800',
+  'Sarabun:wght@400;500;600;700',
   'Mitr:wght@400;500;600;700',
   'Prompt:wght@400;500;600;700;800',
   'Kanit:wght@400;500;600;700;800;900',
-  'Noto+Sans+Thai:wght@400;500;600;700;800;900',
 ];
 
-function fontFamilyCss(name) {
-  const base = String(name || '')
-    .replace(/\s*(Thin|Light|Regular|Medium|SemiBold|Bold|ExtraBold|Black)\s*$/i, '')
-    .trim();
-  if (/^IBM Plex Thai/i.test(base)) return 'IBM Plex Sans Thai';
-  return base || 'Noto Sans Thai';
-}
-
-function escapeHtml(value) {
+function esc(value) {
   return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
-function clamp(value, min, max) {
-  const n = Number(value);
-  return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
+function cleanFont(name, fallback = 'Anuphan') {
+  const value = String(name || '').replace(/\s*(Thin|Light|Regular|Medium|SemiBold|Bold|ExtraBold|Black)\s*$/i, '').trim();
+  if (/^IBM Plex Thai/i.test(value)) return 'IBM Plex Sans Thai';
+  return value || fallback;
 }
-
-function normalizeHex(value, fallback) {
-  const v = String(value || '').trim();
-  return /^#[0-9a-f]{6}$/i.test(v) ? v : fallback;
+function hexToRgb(hex) {
+  const raw = String(hex || '').replace('#', '');
+  const h = raw.length === 3 ? raw.split('').map(x => x + x).join('') : raw.padEnd(6, '0').slice(0, 6);
+  return { r: parseInt(h.slice(0,2),16)||0, g: parseInt(h.slice(2,4),16)||0, b: parseInt(h.slice(4,6),16)||0 };
 }
-
-function readableTextColor(hex) {
-  const h = normalizeHex(hex, '#888888').slice(1);
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? '#171717' : '#FFFFFF';
+function rgba(hex, alpha) { const c = hexToRgb(hex); return `rgba(${c.r},${c.g},${c.b},${alpha})`; }
+function textColor(hex) {
+  const {r,g,b}=hexToRgb(hex); const y=(0.299*r+0.587*g+0.114*b)/255;
+  return y > .62 ? '#171717' : '#FFFFFF';
 }
-
-function parseMaybeJson(value, fallback = {}) {
-  if (value && typeof value === 'object') return value;
-  if (typeof value !== 'string' || !value.trim()) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
+function safeJson(value, fallback={}) {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return fallback; }
 }
+function normalizeInput(body) {
+  const design = safeJson(body.design, {});
+  const template = safeJson(design.designTemplate, {});
+  const layoutPlan = safeJson(body.layoutPlan || design.layoutPlan, {});
+  const profile = safeJson(body.creativeProfile || layoutPlan.creativeProfile || design.creativeProfile, {});
+  const directives = safeJson(body.renderDirectives || layoutPlan.renderDirectives || profile.renderDirectives, {});
 
-function getTemplate(design) {
-  const direct = design?.designTemplate;
-  const sheetValue = design?.['Design Template JSON'];
-  return parseMaybeJson(direct || sheetValue, {});
-}
+  const theme = profile.theme || {};
+  const layout = profile.layout || {};
+  const bubble = profile.bubble || template.bubble || {};
+  const banner = profile.banner || template.banner || {};
+  const typography = profile.typography || {};
+  const decoration = profile.decoration || {};
+  const palette = theme.accentPalette || banner.palette || {};
+  const accent = palette.urgency || palette.trust || palette.premium || '#D9622B';
+  const secondary = palette.trust || palette.natural || '#6F4E37';
+  const cream = bubble.backgroundColor || bubble.background || '#F7F0E6';
 
-function pickPalette(template, design) {
-  const banner = template.banner || {};
-  const palette = banner.palette || parseMaybeJson(design?.['Accent Palette JSON'], {});
   return {
-    urgency: normalizeHex(palette.urgency, '#E9342B'),
-    trust: normalizeHex(palette.trust, '#202124'),
-    natural: normalizeHex(palette.natural, '#4E7D50'),
-    premium: normalizeHex(palette.premium, '#C59A32'),
+    design, template, profile, directives,
+    theme, layout, bubble, banner, typography, decoration,
+    accent, secondary, cream,
+    structure: String(directives.structureType || layout.structureType || body.structureType || 'banner_top').toLowerCase(),
+    bannerPosition: directives.bannerPosition || layout.bannerPosition || banner.position || 'top',
+    bannerHeight: Number(directives.bannerHeightPercent || layout.bannerHeightPercent || banner.heightPercent || 14),
+    alignment: directives.headlineAlignment || layout.headlineAlignment || 'center',
+    productEmphasis: directives.productEmphasis || layout.productEmphasis || 'normal',
   };
 }
 
-function chooseLayout(template, design, overlayCount) {
-  const raw = String(template.layout || design?.['Layout Preset'] || 'hero').toLowerCase();
-  if (['hero', 'review', 'editorial', 'promotion', 'comparison', 'center', 'left', 'right'].includes(raw)) {
-    if (raw === 'center') return 'hero';
-    if (raw === 'left' || raw === 'right') return 'review';
-    return raw;
-  }
-  return overlayCount >= 4 ? 'review' : 'hero';
+function decorationHtml(elements, accent) {
+  const arr = Array.isArray(elements) ? elements : [];
+  const chunks = [];
+  if (arr.includes('emoji_prefix')) chunks.push(`<div class="deco sparkle s1">✦</div><div class="deco sparkle s2">✧</div>`);
+  if (arr.includes('underline')) chunks.push(`<div class="deco underline"></div>`);
+  if (arr.includes('dots')) chunks.push(`<div class="deco dots">•••</div>`);
+  if (arr.includes('leaf')) chunks.push(`<div class="deco leaf">⌁</div>`);
+  return chunks.join('');
 }
 
-function slotPlan(layout, count) {
-  const plans = {
-    hero: [
-      { x: 5, y: 27, w: 34, h: 11, align: 'left' },
-      { x: 61, y: 27, w: 34, h: 11, align: 'right' },
-      { x: 4, y: 69, w: 36, h: 11, align: 'left' },
-      { x: 60, y: 69, w: 36, h: 11, align: 'right' },
-      { x: 25, y: 84, w: 50, h: 10, align: 'center' },
-    ],
-    review: [
-      { x: 3, y: 26, w: 35, h: 11, align: 'left' },
-      { x: 62, y: 26, w: 35, h: 11, align: 'right' },
-      { x: 2, y: 49, w: 34, h: 11, align: 'left' },
-      { x: 64, y: 49, w: 34, h: 11, align: 'right' },
-      { x: 3, y: 74, w: 39, h: 11, align: 'left' },
-      { x: 58, y: 74, w: 39, h: 11, align: 'right' },
-    ],
-    editorial: [
-      { x: 5, y: 27, w: 44, h: 11, align: 'left' },
-      { x: 51, y: 38, w: 44, h: 11, align: 'right' },
-      { x: 5, y: 62, w: 42, h: 11, align: 'left' },
-      { x: 53, y: 76, w: 42, h: 11, align: 'right' },
-    ],
-    promotion: [
-      { x: 5, y: 28, w: 42, h: 12, align: 'left' },
-      { x: 53, y: 28, w: 42, h: 12, align: 'right' },
-      { x: 4, y: 71, w: 40, h: 12, align: 'left' },
-      { x: 56, y: 71, w: 40, h: 12, align: 'right' },
-      { x: 24, y: 85, w: 52, h: 10, align: 'center' },
-    ],
-    comparison: [
-      { x: 4, y: 28, w: 42, h: 12, align: 'left' },
-      { x: 54, y: 28, w: 42, h: 12, align: 'right' },
-      { x: 4, y: 70, w: 42, h: 12, align: 'left' },
-      { x: 54, y: 70, w: 42, h: 12, align: 'right' },
-    ],
+function layoutCss(structure, h, pos, align, productEmphasis) {
+  const emphasis = productEmphasis === 'large' ? '1.08' : '1';
+  const common = `.photo{transform:scale(${emphasis});}`;
+  const map = {
+    banner_top: `${common}.headline-card{left:0;top:0;width:100%;height:${h}%;border-radius:0;padding:22px 70px;justify-content:center;text-align:${align};}`,
+    hero: `${common}.headline-card{left:5.5%;top:5%;width:89%;min-height:15%;border-radius:34px;padding:24px 42px;justify-content:center;text-align:center;}`,
+    floating: `${common}.headline-card{left:7%;top:6%;width:86%;min-height:${Math.max(11,h)}%;border-radius:38px;padding:20px 40px;justify-content:center;text-align:${align};box-shadow:0 18px 45px rgba(0,0,0,.24);}`,
+    banner_left: `${common}.headline-card{left:0;top:0;width:31%;height:100%;border-radius:0 46px 46px 0;padding:50px 34px;justify-content:center;text-align:left;}.headline{font-size:58px;}.bubble-zone{left:34%;width:63%;}`,
+    corner: `${common}.headline-card{left:5.5%;top:5.5%;width:58%;min-height:11%;border-radius:18px 30px 30px 30px;padding:20px 30px;justify-content:flex-start;text-align:left;}.headline{font-size:48px;}`,
+    ribbon: `${common}.headline-card{left:-8%;top:7%;width:64%;min-height:13%;transform:rotate(-7deg);border-radius:0;padding:20px 90px 20px 120px;text-align:center;}.headline{font-size:50px;}`,
+    diagonal: `${common}.headline-card{left:-5%;top:4%;width:112%;height:${Math.max(15,h)}%;transform:rotate(-4deg);border-radius:0;padding:24px 100px;text-align:center;}.headline{transform:rotate(4deg);}`,
+    bottom_overlay: `${common}.headline-card{left:5.5%;bottom:5.5%;width:89%;min-height:${Math.max(14,h)}%;border-radius:34px;padding:24px 38px;justify-content:flex-start;text-align:${align};backdrop-filter:blur(10px);}`,
+    magazine: `${common}.headline-card{left:5%;bottom:5%;width:90%;min-height:18%;border-radius:8px;padding:26px 30px;justify-content:flex-start;text-align:left;border-left:12px solid rgba(255,255,255,.85);}.headline{font-size:54px;}`,
+    clinic: `${common}.headline-card{left:7%;top:5.5%;width:86%;min-height:10%;border-radius:18px;padding:18px 34px;text-align:center;background:rgba(255,255,255,.94)!important;color:#29435C!important;border:1px solid rgba(41,67,92,.16);box-shadow:0 12px 30px rgba(41,67,92,.13);}.headline{font-size:45px;}`,
+    lifestyle: `${common}.headline-card{left:7%;bottom:6%;width:86%;min-height:14%;border-radius:40px;padding:22px 38px;text-align:center;background:rgba(255,250,242,.9)!important;color:#4B382D!important;box-shadow:0 16px 40px rgba(75,56,45,.17);}`,
+    review: `${common}.headline-card{left:6%;top:5%;width:88%;min-height:13%;border-radius:28px;padding:20px 36px;text-align:center;}.review-stars{display:block;}`,
+    promotion: `${common}.headline-card{left:0;top:0;width:100%;height:${Math.max(15,h)}%;border-radius:0;padding:20px 70px;text-align:center;}.promo-chip{display:block;}`,
+    editorial: `${common}.headline-card{left:5%;top:5%;width:61%;min-height:12%;border-radius:12px;padding:18px 26px;text-align:left;background:rgba(250,247,240,.93)!important;color:#222!important;border-left:10px solid var(--accent);}`,
   };
-  return (plans[layout] || plans.hero).slice(0, count);
+  return map[structure] || map.banner_top;
 }
 
-function buildHtml({ imageDataUrl, design, headline, overlayText, imageSequence, imageCount, width, height }) {
-  const template = getTemplate(design);
-  const banner = template.banner || {};
-  const bubble = template.bubble || {};
-  const badge = template.badge || {};
-  const palette = pickPalette(template, design);
-  const layout = chooseLayout(template, design, overlayText.length);
+function bubblePositions(structure) {
+  if (structure === 'banner_left') return [
+    'top:12%;right:6%;','top:43%;right:5%;','bottom:10%;right:7%;'];
+  if (['bottom_overlay','magazine','lifestyle'].includes(structure)) return [
+    'top:8%;left:6%;','top:8%;right:6%;','top:31%;right:7%;'];
+  if (['ribbon','diagonal'].includes(structure)) return [
+    'top:32%;left:6%;','top:41%;right:6%;','bottom:7%;left:9%;'];
+  return ['top:28%;left:6%;','top:30%;right:6%;','bottom:8%;right:7%;'];
+}
 
-  const accentKey = banner.defaultAccentKey || 'urgency';
-  const bannerColor = palette[accentKey] || palette.urgency;
-  const bannerTextColor = readableTextColor(bannerColor);
-  const headlineFont = fontFamilyCss(banner.font || design?.['Font Headline']);
-  const bodyFont = fontFamilyCss(bubble.font || design?.['Font Body']);
-  const headlineWeight = clamp(banner.weight || design?.['Headline Weight'] || 800, 600, 900);
+function buildHtml(payload) {
+  const n = normalizeInput(payload);
+  const headline = esc(payload.headline);
+  const overlay = Array.isArray(payload.overlayText) ? payload.overlayText : [];
+  const headlineFont = cleanFont(n.typography.fontHeadline || n.banner.font || n.design['Font Headline'], 'Anuphan');
+  const bodyFont = cleanFont(n.typography.fontBody || n.bubble.font || n.design['Font Body'], 'IBM Plex Sans Thai');
+  const weight = Number(n.typography.headlineWeight || n.banner.weight || n.design['Headline Weight'] || 800);
+  const accentText = textColor(n.accent);
+  const shape = n.bubble.shape || 'rounded-rect';
+  const bubbleRadius = shape === 'pill' ? '999px' : shape === 'circle' ? '50%' : '24px';
+  const bubbleBg = n.bubble.backgroundColor || n.bubble.background || n.cream;
+  const bubbleText = n.bubble.textColor || '#3E2723';
+  const maxCount = Math.min(Number(n.directives.bubbleMaxCount || n.bubble.maxCount || 3), 4);
+  const positions = bubblePositions(n.structure);
+  const bubbleHtml = overlay.slice(0,maxCount).map((txt,i)=>
+    `<div class="bubble b${i+1}" style="${positions[i] || positions[positions.length-1]};background:${bubbleBg};color:${bubbleText};border-radius:${bubbleRadius};">${esc(txt)}</div>`
+  ).join('');
+  const elements = n.decoration.elements || n.template.decoration || [];
+  const fontLinks = GOOGLE_FONT_FAMILIES.map(f=>`family=${f}`).join('&');
+  const layoutRules = layoutCss(n.structure,n.bannerHeight,n.bannerPosition,n.alignment,n.productEmphasis);
+  const bgPos = payload.imagePosition || n.design.imagePosition || 'center';
 
-  const headlineHeight = clamp(banner.heightPercent || (layout === 'promotion' ? 19 : 17), 14, 23);
-  const bubbleBg = normalizeHex(bubble.background || design?.['Bubble Background Color'], '#FFF7F0');
-  const bubbleText = normalizeHex(bubble.textColor || design?.['Bubble Text Color'], '#33231F');
-  const bubbleRadius = bubble.shape === 'pill' ? 999 : 18;
-  const maxCount = clamp(bubble.maxCount || design?.['Bubble Max Count'] || 5, 1, 6);
-  const items = overlayText.filter(Boolean).slice(0, maxCount);
-  const slots = slotPlan(layout, items.length);
-
-  const bubbleHtml = items.map((text, i) => {
-    const slot = slots[i];
-    const primary = i === 0 && items.length >= 3;
-    return `<div class="bubble ${primary ? 'bubble-primary' : ''}" style="left:${slot.x}%;top:${slot.y}%;width:${slot.w}%;height:${slot.h}%;text-align:${slot.align};background:${bubbleBg};color:${bubbleText};border-radius:${bubbleRadius}px;font-family:'${bodyFont}',sans-serif;">${escapeHtml(text)}</div>`;
-  }).join('\n');
-
-  const badgeText = String(badge.text || design?.['Badge Default Text'] || '').trim();
-  const badgeHtml = badgeText
-    ? `<div class="badge" style="background:${normalizeHex(badge.color || design?.['Badge Color'], '#FFD2A6')};color:${readableTextColor(badge.color || design?.['Badge Color'] || '#FFD2A6')};font-family:'${bodyFont}',sans-serif;">${escapeHtml(badgeText)}</div>`
-    : '';
-
-  const fontLinks = GOOGLE_FONT_FAMILIES.map((f) => `family=${f}`).join('&');
-
-  return `<!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?${fontLinks}&display=swap" rel="stylesheet">
-<style>
-  *{box-sizing:border-box}html,body{margin:0;width:${width}px;height:${height}px;overflow:hidden;background:#fff}
-  .canvas{position:relative;width:100%;height:100%;overflow:hidden;background-image:url('${imageDataUrl}');background-size:cover;background-position:center}
-  .headline-wrap{position:absolute;z-index:5;left:5%;right:5%;top:2.3%;height:${headlineHeight}%;display:flex;align-items:center;justify-content:center;padding:1.4% 4%;border-radius:28px;background:${bannerColor};box-shadow:0 8px 22px rgba(0,0,0,.20)}
-  .headline{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:${bannerTextColor};font-family:'${headlineFont}',sans-serif;font-weight:${headlineWeight};line-height:1.08;letter-spacing:-.8px;overflow:hidden}
-  .bubble{position:absolute;z-index:4;display:flex;align-items:center;justify-content:center;padding:1.2% 1.8%;font-weight:700;line-height:1.18;box-shadow:0 5px 14px rgba(0,0,0,.16);border:2px solid rgba(255,255,255,.44);overflow:hidden}
-  .bubble-primary{font-weight:800;box-shadow:0 7px 18px rgba(0,0,0,.20)}
-  .badge{position:absolute;z-index:6;right:5%;bottom:4%;max-width:42%;padding:1.15% 2.1%;border-radius:18px;font-size:clamp(25px,3vw,38px);font-weight:800;line-height:1.15;box-shadow:0 6px 16px rgba(0,0,0,.18)}
-  .seq{position:absolute;z-index:7;left:2%;bottom:1.8%;font:500 16px/1 sans-serif;color:rgba(255,255,255,.7);text-shadow:0 1px 3px rgba(0,0,0,.8)}
-</style>
-</head>
-<body>
-  <div class="canvas">
-    <div class="headline-wrap"><div id="headline" class="headline">${escapeHtml(headline)}</div></div>
-    ${bubbleHtml}
-    ${badgeHtml}
-    <div class="seq">${Number(imageSequence || 1)}/${Number(imageCount || 1)}</div>
-  </div>
-<script>
-  function fitText(el, max, min) {
-    let size = max;
-    el.style.fontSize = size + 'px';
-    while (size > min && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)) {
-      size -= 2;
-      el.style.fontSize = size + 'px';
-    }
-  }
-  async function fitAll() {
-    if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    fitText(document.getElementById('headline'), ${Math.round(width * 0.075)}, ${Math.round(width * 0.043)});
-    document.querySelectorAll('.bubble').forEach((el, i) => fitText(el, i === 0 ? ${Math.round(width * 0.043)} : ${Math.round(width * 0.039)}, ${Math.round(width * 0.026)}));
-  }
-  window.__fitPromise = fitAll();
-</script>
-</body>
-</html>`;
+  return `<!doctype html><html><head><meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?${fontLinks}&display=swap" rel="stylesheet">
+  <style>
+  :root{--accent:${n.accent};--secondary:${n.secondary};}
+  *{box-sizing:border-box}html,body{margin:0;width:1080px;height:1080px;overflow:hidden;background:#eee}
+  .canvas{position:relative;width:1080px;height:1080px;overflow:hidden;font-family:'${bodyFont}',sans-serif;background:#ddd}
+  .photo{position:absolute;inset:0;background-image:url('${payload.imageDataUrl}');background-size:cover;background-position:${bgPos};filter:saturate(1.04) contrast(1.02);}
+  .vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.09),transparent 26%,transparent 72%,rgba(0,0,0,.14));pointer-events:none}
+  .headline-card{position:absolute;z-index:20;display:flex;align-items:center;background:linear-gradient(135deg,${n.accent},${n.secondary});color:${accentText};box-shadow:0 14px 36px rgba(0,0,0,.20);overflow:hidden}
+  .headline-card:after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,rgba(255,255,255,.19),transparent 36%,rgba(255,255,255,.08));pointer-events:none}
+  .headline{position:relative;z-index:2;width:100%;font-family:'${headlineFont}',sans-serif;font-size:56px;font-weight:${weight};line-height:1.08;letter-spacing:${n.typography.letterSpacing || '0'};text-wrap:balance;text-shadow:0 2px 1px rgba(0,0,0,.05)}
+  .bubble-zone{position:absolute;inset:0;z-index:15}
+  .bubble{position:absolute;max-width:37%;padding:16px 22px;font-size:29px;font-weight:700;line-height:1.24;box-shadow:0 12px 28px rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(5px)}
+  .bubble:before{content:'';position:absolute;inset:3px;border-radius:inherit;border:1px solid rgba(255,255,255,.35);pointer-events:none}
+  .deco{position:absolute;z-index:24;pointer-events:none}.sparkle{color:#fff;font-size:45px;text-shadow:0 4px 14px rgba(0,0,0,.3)}.s1{top:3%;right:4%}.s2{top:17%;left:3%;font-size:31px}.underline{left:12%;top:21%;width:32%;height:8px;border-radius:8px;background:var(--accent);transform:rotate(-2deg)}.dots{right:4%;bottom:3%;font-size:38px;color:var(--accent)}.leaf{right:4%;top:3%;font-size:70px;color:var(--accent);transform:rotate(-18deg)}
+  .review-stars{display:none;position:absolute;right:5%;top:50%;transform:translateY(-50%);font-size:26px;letter-spacing:4px;color:#FFD45A;z-index:3}.promo-chip{display:none;position:absolute;right:4%;bottom:-22px;background:#fff;color:var(--accent);padding:9px 20px;border-radius:999px;font-size:22px;font-weight:800;box-shadow:0 9px 20px rgba(0,0,0,.2);z-index:3}
+  .seq{position:absolute;z-index:30;bottom:18px;left:20px;color:rgba(255,255,255,.75);font:600 16px sans-serif;text-shadow:0 1px 5px rgba(0,0,0,.7)}
+  ${layoutRules}
+  </style></head><body><div class="canvas"><div class="photo"></div><div class="vignette"></div>
+  <div class="headline-card"><div class="headline">${headline}</div><div class="review-stars">★★★★★</div><div class="promo-chip">SPECIAL</div></div>
+  <div class="bubble-zone">${bubbleHtml}</div>${decorationHtml(elements,n.accent)}
+  <div class="seq">${Number(payload.imageSequence||1)}/${Number(payload.imageCount||1)}</div></div></body></html>`;
 }
 
 let browserPromise;
-function getBrowser() {
-  if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-  }
-  return browserPromise;
-}
+function getBrowser(){ if(!browserPromise) browserPromise=chromium.launch({args:['--no-sandbox','--disable-dev-shm-usage']}); return browserPromise; }
 
-function authorize(req, res) {
-  if (!AUTH_TOKEN) return true;
-  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (token === AUTH_TOKEN) return true;
-  res.status(401).json({ error: 'UNAUTHORIZED' });
-  return false;
-}
-
-app.post('/render', async (req, res) => {
-  if (!authorize(req, res)) return;
-  try {
-    const {
-      imageBase64,
-      imageMimeType = 'image/jpeg',
-      design = {},
-      headline,
-      overlayText = [],
-      imageSequence = 1,
-      imageCount = 1,
-      outputWidth = 1080,
-      outputHeight = 1080,
-    } = req.body || {};
-
-    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
-    if (!String(headline || '').trim()) return res.status(400).json({ error: 'headline required' });
-
-    const width = clamp(outputWidth, 720, 2160);
-    const height = clamp(outputHeight, 720, 2160);
-    const imageDataUrl = `data:${imageMimeType};base64,${imageBase64}`;
-    const html = buildHtml({
-      imageDataUrl,
-      design,
-      headline: String(headline).trim(),
-      overlayText: Array.isArray(overlayText) ? overlayText.map(String) : [],
-      imageSequence,
-      imageCount,
-      width,
-      height,
-    });
-
-    const browser = await getBrowser();
-    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-    try {
-      await page.setContent(html, { waitUntil: 'networkidle', timeout: 45000 });
-      await page.evaluate(async () => {
-        if (window.__fitPromise) await window.__fitPromise;
-      });
-      const buffer = await page.screenshot({ type: 'png' });
-      res.set({
-        'Content-Type': 'image/png',
-        'X-Beleaf-Render-Version': VERSION,
-        'Cache-Control': 'no-store',
-      });
+app.post('/render', async (req,res)=>{
+  try{
+    if(AUTH_TOKEN){ const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,''); if(token!==AUTH_TOKEN) return res.status(401).json({error:'UNAUTHORIZED'}); }
+    const body=req.body||{};
+    if(!body.imageBase64) return res.status(400).json({error:'imageBase64 required'});
+    if(!body.headline) return res.status(400).json({error:'headline required'});
+    const imageDataUrl=`data:${body.imageMimeType||'image/jpeg'};base64,${body.imageBase64}`;
+    const html=buildHtml({...body,imageDataUrl});
+    const browser=await getBrowser();
+    const page=await browser.newPage({viewport:{width:1080,height:1080},deviceScaleFactor:1});
+    try{
+      await page.setContent(html,{waitUntil:'networkidle'});
+      await page.evaluate(async()=>{if(document.fonts?.ready) await document.fonts.ready});
+      const buffer=await page.screenshot({type:'png'});
+      res.set({'Content-Type':'image/png','X-Beleaf-Render-Version':RENDER_VERSION});
       res.send(buffer);
-    } finally {
-      await page.close();
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'RENDER_FAILED', message: String(error?.message || error) });
-  }
+    }finally{await page.close();}
+  }catch(err){console.error(err);res.status(500).json({error:'RENDER_FAILED',message:String(err.message||err),version:RENDER_VERSION});}
 });
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'beleaf-render-service', version: VERSION });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Beleaf Smart Layout Render Service v${VERSION} listening on :${PORT}`);
-});
+app.get('/health',(_req,res)=>res.json({ok:true,version:RENDER_VERSION,layouts:['banner_top','hero','floating','banner_left','corner','ribbon','diagonal','bottom_overlay','magazine','clinic','lifestyle','review','promotion','editorial']}));
+app.listen(PORT,()=>console.log(`Beleaf render service ${RENDER_VERSION} listening on :${PORT}`));

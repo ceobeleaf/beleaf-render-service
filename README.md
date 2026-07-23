@@ -1,88 +1,47 @@
-# Beleaf Smart Layout Render Service v2.0.0
+# Beleaf Render Service v3 — Premium Creative Engine
 
-Browser-based Thai typography and rule-based layout engine for Workflow 3.
+A browser-based Thai typography and layout renderer for Beleaf's n8n content pipeline.
 
-## What changed in v2
+## What changed
 
-- Larger, rounded headline banner with shadow
-- Automatic headline and bubble font fitting
-- 4 layout presets: `hero`, `review`, `editorial`, `promotion`, plus `comparison`
-- Bubble placement around a central product-safe area
-- Up to 6 overlay bubbles
-- Keeps the existing `/render` request format, so the current n8n workflow remains compatible
-- Optional `outputWidth` and `outputHeight` fields; defaults to 1080 × 1080
+- Reads `creativeProfile`, `layoutPlan`, and `renderDirectives` from WF2/WF3.
+- Backward compatible with the older `design.designTemplate` payload.
+- Supports these layout structures: `banner_top`, `hero`, `floating`, `banner_left`, `corner`, `ribbon`, `diagonal`, `bottom_overlay`, `magazine`, `clinic`, `lifestyle`, `review`, `promotion`, `editorial`.
+- Dynamic theme colors, bubble style, banner shape, typography, decoration, shadow and safe-zone placement.
+- `/health` reports the deployed render version and supported layouts.
 
-## Required files
+## Deploy
 
-The repository root must contain exactly:
+Push all files to the existing `beleaf-render-service` GitHub repository, commit, and let Render.com redeploy the Docker service. Keep the existing `RENDER_AUTH_TOKEN` environment variable.
 
-- `Dockerfile`
-- `package.json`
-- `server.js`
-- `README.md`
+Check:
 
-## Render.com
-
-Set environment variable:
-
-`RENDER_AUTH_TOKEN=<your existing token>`
-
-Deploy using Docker. After deployment, test:
-
-`GET /health`
-
-Expected response:
-
-```json
-{"ok":true,"service":"beleaf-render-service","version":"2.0.0"}
+```bash
+curl https://YOUR-SERVICE.onrender.com/health
 ```
 
-## API
+Expected version:
 
-`POST /render`
+```json
+{"ok":true,"version":"3.0.0-premium-creative-engine"}
+```
 
-Header:
+## Payload
 
-`Authorization: Bearer <RENDER_AUTH_TOKEN>`
-
-The request body remains compatible with v1:
+The service accepts the existing payload plus these optional root fields:
 
 ```json
 {
-  "imageBase64": "...",
-  "imageMimeType": "image/jpeg",
-  "design": {},
-  "headline": "ข้อความพาดหัว",
-  "overlayText": ["ข้อความ 1", "ข้อความ 2"],
-  "imageSequence": 1,
-  "imageCount": 2
+  "creativeProfile": {},
+  "layoutPlan": {},
+  "renderDirectives": {},
+  "structureType": "floating"
 }
 ```
 
-Optional dimensions:
+The renderer resolves values in this order:
 
-```json
-{
-  "outputWidth": 1080,
-  "outputHeight": 1080
-}
-```
-
-## Design Bible mapping
-
-The renderer reads either:
-
-- `design.designTemplate`, or
-- the sheet field `Design Template JSON`
-
-Recognized layout names:
-
-- `hero`
-- `review`
-- `editorial`
-- `promotion`
-- `comparison`
-- `center` maps to `hero`
-- `left` and `right` map to `review`
-
-This is a deterministic rule-based layout engine. It does not yet detect the exact product silhouette. It reserves the central image area and places text around it, which is much safer than the v1 corner-only placement.
+1. Root payload directives
+2. `layoutPlan`
+3. `creativeProfile`
+4. Legacy `design.designTemplate`
