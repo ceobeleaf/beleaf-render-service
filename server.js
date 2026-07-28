@@ -119,13 +119,15 @@ function orderSlots(hint) {
 function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   const s = str(shape, 'rounded-rect').toLowerCase();
   const base = `background:${accent}; color:${textColor}; box-shadow:${shadow};`;
-  const inset = 'left:5.5%; max-width:82%; padding:0.42em 0.80em;';
+  // v3.1: ป้ายแบบเว้นขอบจัดกึ่งกลางภาพ (เจ้าของขอ 28 ก.ค. 69)
+  const inset = 'left:50%; transform:translateX(-50%); max-width:88%; padding:0.42em 0.90em;';
   const full = 'left:0; width:100%; padding:0.46em 4%;';
 
   if (/text-only|underline|none/.test(s)) {
     return {
-      css: `left:5.5%; max-width:86%; padding:0.10em 0; background:transparent;
-            color:#FFFFFF; border-bottom:0.16em solid ${accent}; box-shadow:none;
+      css: `left:50%; transform:translateX(-50%); max-width:88%; padding:0.10em 0;
+            background:transparent; color:#FFFFFF;
+            border-bottom:0.16em solid ${accent}; box-shadow:none;
             text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.8);`,
       extra: '',
     };
@@ -147,7 +149,7 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   }
   if (/skew|diagonal/.test(s)) {
     return {
-      css: `${inset} ${base} border-radius:0; transform:skewX(-9deg);`,
+      css: `${inset.replace('transform:translateX(-50%);', '')} transform:translateX(-50%) skewX(-9deg); ${base} border-radius:0;`,
       extra: 'transform:skewX(9deg); display:inline-block;',
     };
   }
@@ -203,7 +205,11 @@ function buildHtml(payload) {
     num(rd.maxOverlayBlocks, num(bubble.maxCount, 4)), SLOTS.length
   );
   const stickers = [];
+  // v3.1: WF2 บางสูตรส่ง overlayText มาเป็นก้อนเดียวที่มี \n ข้างใน
+  // ของเดิมตั้ง nowrap ทำให้ยุบเป็นบรรทัดเดียวยาว แล้วตัวย่ออัตโนมัติหดจนอ่านไม่ออก
+  // จึงแตกออกเป็นกล่องละบรรทัดก่อน
   const blocks = overlay
+    .flatMap((t) => String(t ?? '').split(/\r?\n+/))
     .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return s.text; })
     .filter(Boolean)
     .slice(0, maxBlocks);
@@ -231,7 +237,7 @@ function buildHtml(payload) {
   const bubbleHtml = blocks.map((t, i) => {
     const slot = slotOrder[i];
     const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
-    return `<div class="bubble" style="top:${slot.top};${pos}">${esc(t)}</div>`;
+    return `<div class="bubble" style="top:${slot.top};${pos}"><span>${esc(t)}</span></div>`;
   }).join('\n');
 
   const showSticker =
@@ -305,17 +311,23 @@ function buildHtml(payload) {
     ${bubbleHtml}
   </div>
   <script>
-    function fit(el, maxRatio) {
-      if (!el) return;
+    // v3.1: ป้ายที่กว้าง 100% มี scrollWidth เท่ากับความกว้างภาพเสมอ
+    // ของเดิมวัดจากกล่องจึงวนย่อจนชนขั้นต่ำ 18px ทุกครั้ง -> วัดจาก span ข้างในแทน
+    function fit(box, measured, maxRatio) {
+      if (!box || !measured) return;
       var limit = ${W} * maxRatio;
-      var size = parseFloat(getComputedStyle(el).fontSize);
+      var size = parseFloat(getComputedStyle(box).fontSize);
       var guard = 0;
-      while (el.scrollWidth > limit && size > 18 && guard < 60) {
-        size -= 2; el.style.fontSize = size + 'px'; guard++;
+      while (measured.scrollWidth > limit && size > 22 && guard < 60) {
+        size -= 2; box.style.fontSize = size + 'px'; guard++;
       }
     }
-    fit(document.getElementById('banner'), ${isTag ? 0.82 : 0.92});
-    document.querySelectorAll('.bubble').forEach(function (b) { fit(b, 0.44); });
+    var bannerBox = document.getElementById('banner');
+    var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
+    fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
+    document.querySelectorAll('.bubble').forEach(function (b) {
+      fit(b, b.firstElementChild || b, 0.42);
+    });
   </script>
 </body></html>`;
 }
