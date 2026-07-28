@@ -16,6 +16,8 @@ const { chromium } = require('playwright');
 const app = express();
 app.use(express.json({ limit: '30mb' }));
 
+// เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
+const BUILD = 'v3.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -451,7 +453,12 @@ function buildHtml(payload) {
 /* ---------- routes ---------- */
 
 app.get('/health', (_req, res) =>
-  res.json({ ok: true, service: 'beleaf-render-v3' }));
+  res.json({
+    ok: true,
+    service: 'beleaf-render',
+    build: BUILD,
+    patterns: Object.keys(PATTERNS),
+  }));
 
 app.post('/render', async (req, res) => {
   try {
@@ -486,4 +493,4 @@ app.post('/render', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`beleaf-render-v3 listening on ${PORT}`));
+app.listen(PORT, () => console.log(`beleaf-render ${BUILD} listening on ${PORT}`));
