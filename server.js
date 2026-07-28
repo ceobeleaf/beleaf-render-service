@@ -59,7 +59,9 @@ function readableOn(hex) {
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return lum > 0.45 ? '#141414' : '#FFFFFF';
+  // v2.1: Dr.PONG ใช้ตัวดำบนส้ม อ่านชัดกว่าตัวขาวมาก
+  // เดิมตั้ง 0.45 ทำให้ส้ม #D9622B (lum 0.236) ได้ตัวขาว
+  return lum > 0.16 ? '#141414' : '#FFFFFF';
 }
 
 // ดึงอีโมจิที่ AI แทรกมากลางประโยคออก แล้วส่งกลับแยกไว้ใช้เป็นสติกเกอร์
@@ -83,12 +85,12 @@ const SCALE = {
 /* ---------- ตำแหน่งกล่องข้อความ ----------
    หลบตรงกลางภาพไว้ให้สินค้า วางเป็นคู่ซ้าย-ขวาเหมือน Dr.PONG      */
 const SLOTS = [
-  { top: '21%', left: '5%',  align: 'flex-start' },
-  { top: '21%', right: '5%', align: 'flex-end' },
-  { top: '45%', left: '5%',  align: 'flex-start' },
-  { top: '45%', right: '5%', align: 'flex-end' },
-  { top: '68%', left: '5%',  align: 'flex-start' },
-  { top: '68%', right: '5%', align: 'flex-end' },
+  { top: '20%', left: '5%'  },
+  { top: '20%', right: '5%' },
+  { top: '70%', left: '5%'  },
+  { top: '70%', right: '5%' },
+  { top: '45%', left: '5%'  },
+  { top: '45%', right: '5%' },
 ];
 
 function buildHtml(payload) {
@@ -172,11 +174,15 @@ function buildHtml(payload) {
   // สติกเกอร์อีโมจิ วางทับมุมป้าย ไม่ปนกลางข้อความ
   const showSticker =
     decoration.includes('emoji_prefix') || decoration.includes('emoji_sticker');
-  const stickerChar = hRaw.emoji[0] || stickers[0] || '';
-  const stickerHtml =
-    showSticker && stickerChar
-      ? `<div class="sticker">${esc(stickerChar)}</div>`
-      : '';
+  // v2.1: Dr.PONG วางสติกเกอร์ 2 ตัวคร่อมป้ายพาดหัว (ซ้ายบน + ขวาของป้าย)
+  // ใช้อีโมจิที่ AI แทรกมาก่อน ถ้าไม่มีค่อยใช้ชุดกลางที่ไม่ผูกกับสรรพคุณ
+  const pool = [...hRaw.emoji, ...stickers].filter(Boolean);
+  const leftChar = pool[0] || '\u2728';
+  const rightChar = pool[1] || '';
+  const stickerHtml = showSticker
+    ? `<div class="sticker sticker-left">${esc(leftChar)}</div>` +
+      (rightChar ? `<div class="sticker sticker-right">${esc(rightChar)}</div>` : '')
+    : '';
 
   const bannerBox = isTag
     ? `left:5.5%; max-width:80%; border-radius:${radius}px; padding:0.42em 0.78em;`
@@ -211,12 +217,14 @@ function buildHtml(payload) {
     white-space:nowrap;
   }
   .sticker {
-    position:absolute; top:1.2%; left:2.5%;
+    position:absolute;
     font-family:'Noto Color Emoji',sans-serif;
     font-size:${Math.round(headlinePx * 1.05)}px;
     line-height:1; z-index:5;
     filter:drop-shadow(0 4px 10px rgba(0,0,0,.28));
   }
+  .sticker-left  { top:0.8%; left:2%; }
+  .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
   .bubble {
     position:absolute;
     background:${bubbleBg};
