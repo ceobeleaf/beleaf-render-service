@@ -86,34 +86,103 @@ const SCALE = {
   large:  { headline: 0.090, bubble: 0.048 },
 };
 
-// v3.3: ขยับลงจากเดิม 20/45/70 -> 27/50/74
-// ของเดิมแถวบนชนพาดหัว ส่วนพื้นที่ล่างเหลือว่างเปล่า
-const SLOTS = [
-  { top: '27%', left: '5%'  },
-  { top: '27%', right: '5%' },
-  { top: '74%', left: '5%'  },
-  { top: '74%', right: '5%' },
-  { top: '50%', left: '5%'  },
-  { top: '50%', right: '5%' },
-];
+// v3.4: ผังวางกล่องข้อความ 6 แบบ เลือกได้รายเพจผ่านชีต 19 คอลัมน์ "Slot Pattern"
+// ของเดิมมีผังเดียวตายตัว ทุกเพจจึงวางกล่องตำแหน่งเดียวกันหมด
+const PATTERNS = {
+  // คู่บน-คู่ล่าง เว้นกลางให้สินค้า (ค่าเริ่มต้นเดิม)
+  split: {
+    maxWidth: '44%',
+    slots: [
+      { top: '27%', left: '5%'  },
+      { top: '27%', right: '5%' },
+      { top: '74%', left: '5%'  },
+      { top: '74%', right: '5%' },
+      { top: '50%', left: '5%'  },
+      { top: '50%', right: '5%' },
+    ],
+  },
+  // เรียงชิดซ้ายลงมาเป็นคอลัมน์เดียว
+  'left-stack': {
+    maxWidth: '48%',
+    slots: [
+      { top: '26%', left: '5%' },
+      { top: '39%', left: '5%' },
+      { top: '52%', left: '5%' },
+      { top: '65%', left: '5%' },
+      { top: '78%', left: '5%' },
+      { top: '13%', left: '5%' },
+    ],
+  },
+  'right-stack': {
+    maxWidth: '48%',
+    slots: [
+      { top: '26%', right: '5%' },
+      { top: '39%', right: '5%' },
+      { top: '52%', right: '5%' },
+      { top: '65%', right: '5%' },
+      { top: '78%', right: '5%' },
+      { top: '13%', right: '5%' },
+    ],
+  },
+  // สี่มุมภาพ เว้นกลางโล่ง
+  'four-corners': {
+    maxWidth: '40%',
+    slots: [
+      { top: '24%', left: '4%'  },
+      { top: '24%', right: '4%' },
+      { top: '78%', left: '4%'  },
+      { top: '78%', right: '4%' },
+      { top: '51%', left: '4%'  },
+      { top: '51%', right: '4%' },
+    ],
+  },
+  // โค้งตามขอบล่าง ปลายสองข้างยกขึ้น
+  'bottom-arc': {
+    maxWidth: '26%',
+    slots: [
+      { top: '70%', left: '2%'  },
+      { top: '80%', left: '26%' },
+      { top: '80%', right: '26%' },
+      { top: '70%', right: '2%' },
+      { top: '58%', left: '2%'  },
+      { top: '58%', right: '2%' },
+    ],
+  },
+  // สลับฟันปลาจากบนลงล่าง
+  diagonal: {
+    maxWidth: '42%',
+    slots: [
+      { top: '24%', left: '5%'  },
+      { top: '42%', right: '5%' },
+      { top: '60%', left: '5%'  },
+      { top: '78%', right: '5%' },
+      { top: '33%', right: '5%' },
+      { top: '69%', left: '5%'  },
+    ],
+  },
+};
+const DEFAULT_PATTERN = 'split';
 
 // AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เอามาเรียงลำดับช่องวางกล่อง
-function orderSlots(hint) {
+function orderSlots(slots, hint) {
   const h = str(hint);
   const wantTop = /บน|top|upper/i.test(h);
   const wantBottom = /ล่าง|bottom|lower/i.test(h);
   const wantLeft = /ซ้าย|left/i.test(h);
   const wantRight = /ขวา|right/i.test(h);
-  if (!wantTop && !wantBottom && !wantLeft && !wantRight) return SLOTS;
+  if (!wantTop && !wantBottom && !wantLeft && !wantRight) return slots;
+  const tops = slots.map(s => parseFloat(s.top));
+  const mid = (Math.min(...tops) + Math.max(...tops)) / 2;
   const score = (sl) => {
     let n = 0;
-    if (wantTop && sl.top === '27%') n += 2;
-    if (wantBottom && sl.top === '74%') n += 2;
+    const y = parseFloat(sl.top);
+    if (wantTop && y <= mid) n += 2;
+    if (wantBottom && y > mid) n += 2;
     if (wantLeft && sl.left) n += 1;
     if (wantRight && !sl.left) n += 1;
     return n;
   };
-  return [...SLOTS].sort((a, b) => score(b) - score(a));
+  return [...slots].sort((a, b) => score(b) - score(a));
 }
 
 /* ---------- ทรงป้ายพาดหัว ---------- */
@@ -213,11 +282,18 @@ function buildHtml(payload) {
 
   // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
   // ถ้าเชื่อค่านั้นตรงๆ จะเหลือกล่องเดียวทั้งที่แตกได้หลายบรรทัด
+  // v3.4: ผังมาจากชีต 19 คอลัมน์ "Slot Pattern" (ผ่าน bubbleStyle ที่ WF3 ส่งมาทั้งแถว)
+  const patternKey = str(
+    (dt.bubbleStyle || {})['Slot Pattern'] || bubble.slotPattern || rd.slotPattern,
+    DEFAULT_PATTERN
+  ).toLowerCase();
+  const pattern = PATTERNS[patternKey] || PATTERNS[DEFAULT_PATTERN];
+
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
   const maxBlocks = Math.min(
     wasSingleParagraph ? rawBlocks.length : configuredMax,
-    SLOTS.length
+    pattern.slots.length
   );
   const blocks = rawBlocks.slice(0, maxBlocks);
 
@@ -240,7 +316,7 @@ function buildHtml(payload) {
   const fontBody = fontFamily(typo.fontBody, 'IBM Plex Sans Thai');
   const headlineWeight = num(typo.headlineWeight, 800);
 
-  const slotOrder = orderSlots(rd.emptySpaceHint);
+  const slotOrder = orderSlots(pattern.slots, rd.emptySpaceHint);
   const bubbleHtml = blocks.map((t, i) => {
     const slot = slotOrder[i];
     const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
@@ -309,7 +385,7 @@ function buildHtml(payload) {
     padding:0.52em 0.9em;
     border-radius:${bubbleRadius}px;
     box-shadow:${isTransparent ? 'none' : bubbleShadow};
-    max-width:44%;
+    max-width:${pattern.maxWidth};
     white-space:nowrap;
   }
 </style></head>
@@ -336,7 +412,7 @@ function buildHtml(payload) {
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
     fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
     document.querySelectorAll('.bubble').forEach(function (b) {
-      fit(b, b.firstElementChild || b, 0.42);
+      fit(b, b.firstElementChild || b, ${(parseFloat(pattern.maxWidth) / 100).toFixed(2)});
     });
   </script>
 </body></html>`;
