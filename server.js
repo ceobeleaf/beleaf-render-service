@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v3.6';
+const BUILD = 'v3.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -300,11 +300,12 @@ function buildHtml(payload) {
   ).toLowerCase();
 
   // ชีต 66 บอกว่าเพจนี้ได้ข้อความกี่ก้อน: 1 ก้อน = พารากราฟ, หลายก้อน = บับเบิล
-  const wantsParagraph =
+  // v3.7: ชีต 66 บอกว่าเพจนี้ต้องการข้อความก้อนเดียวหรือหลายก้อน
+  // ของเดิมเช็ค rawBlocks.length === 1 ซึ่งผิด เพราะแตก \n ไปแล้วก่อนหน้านั้น
+  // พารากราฟ 7 บรรทัดจึงถูกนับเป็น 7 ก้อน แล้วยัดเป็นกล่องบรรทัดเดียวจนล้นกรอบ
+  const useParagraph =
     num(rd.textBlockCountMax, 0) === 1 ||
-    str(rd.bubbleMode) === '' && str(rd.structureType).includes('paragraph');
-  const isParagraphNow = rawBlocks.length === 1;
-  const useParagraph = wantsParagraph && isParagraphNow;
+    (str(rd.bubbleMode) === '' && str(rd.structureType).includes('paragraph'));
 
   // กันใส่ผิดตระกูล: เพจพารากราฟที่เผลอใส่ผังบับเบิลไว้จะถูกสลับให้อัตโนมัติ
   let patternKey = PATTERNS[requested] ? requested
