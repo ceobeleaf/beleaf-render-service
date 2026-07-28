@@ -86,82 +86,75 @@ const SCALE = {
   large:  { headline: 0.090, bubble: 0.048 },
 };
 
-// v3.4: ผังวางกล่องข้อความ 6 แบบ เลือกได้รายเพจผ่านชีต 19 คอลัมน์ "Slot Pattern"
-// ของเดิมมีผังเดียวตายตัว ทุกเพจจึงวางกล่องตำแหน่งเดียวกันหมด
+// v3.6: ผังวางกล่องข้อความ เลือกรายเพจผ่านชีต 19 คอลัมน์ "Slot Pattern"
+// แยกสองตระกูลตามชีต 66: หลายก้อนสั้น (LAYOUT03) กับก้อนเดียวยาว (LAYOUT02)
 const PATTERNS = {
-  // คู่บน-คู่ล่าง เว้นกลางให้สินค้า (ค่าเริ่มต้นเดิม)
+  // ---------- ตระกูลหลายก้อน ----------
   split: {
-    maxWidth: '44%',
+    kind: 'blocks', maxWidth: '44%',
     slots: [
-      { top: '27%', left: '5%'  },
-      { top: '27%', right: '5%' },
-      { top: '74%', left: '5%'  },
-      { top: '74%', right: '5%' },
-      { top: '50%', left: '5%'  },
-      { top: '50%', right: '5%' },
+      { top: '27%', left: '5%' }, { top: '27%', right: '5%' },
+      { top: '74%', left: '5%' }, { top: '74%', right: '5%' },
+      { top: '50%', left: '5%' }, { top: '50%', right: '5%' },
     ],
   },
-  // เรียงชิดซ้ายลงมาเป็นคอลัมน์เดียว
   'left-stack': {
-    maxWidth: '48%',
+    kind: 'blocks', maxWidth: '48%',
     slots: [
-      { top: '26%', left: '5%' },
-      { top: '39%', left: '5%' },
-      { top: '52%', left: '5%' },
-      { top: '65%', left: '5%' },
-      { top: '78%', left: '5%' },
-      { top: '13%', left: '5%' },
+      { top: '26%', left: '5%' }, { top: '39%', left: '5%' },
+      { top: '52%', left: '5%' }, { top: '65%', left: '5%' },
+      { top: '78%', left: '5%' }, { top: '13%', left: '5%' },
     ],
   },
   'right-stack': {
-    maxWidth: '48%',
+    kind: 'blocks', maxWidth: '48%',
     slots: [
-      { top: '26%', right: '5%' },
-      { top: '39%', right: '5%' },
-      { top: '52%', right: '5%' },
-      { top: '65%', right: '5%' },
-      { top: '78%', right: '5%' },
-      { top: '13%', right: '5%' },
+      { top: '26%', right: '5%' }, { top: '39%', right: '5%' },
+      { top: '52%', right: '5%' }, { top: '65%', right: '5%' },
+      { top: '78%', right: '5%' }, { top: '13%', right: '5%' },
     ],
   },
-  // สี่มุมภาพ เว้นกลางโล่ง
   'four-corners': {
-    maxWidth: '40%',
+    kind: 'blocks', maxWidth: '40%',
     slots: [
-      { top: '24%', left: '4%'  },
-      { top: '24%', right: '4%' },
-      { top: '78%', left: '4%'  },
-      { top: '78%', right: '4%' },
-      { top: '51%', left: '4%'  },
-      { top: '51%', right: '4%' },
+      { top: '24%', left: '4%' }, { top: '24%', right: '4%' },
+      { top: '78%', left: '4%' }, { top: '78%', right: '4%' },
+      { top: '51%', left: '4%' }, { top: '51%', right: '4%' },
     ],
   },
-  // โค้งตามขอบล่าง ปลายสองข้างยกขึ้น
   'bottom-arc': {
-    maxWidth: '26%',
+    kind: 'blocks', maxWidth: '26%',
     slots: [
-      { top: '70%', left: '2%'  },
-      { top: '80%', left: '26%' },
-      { top: '80%', right: '26%' },
-      { top: '70%', right: '2%' },
-      { top: '58%', left: '2%'  },
-      { top: '58%', right: '2%' },
+      { top: '70%', left: '2%' }, { top: '80%', left: '26%' },
+      { top: '80%', right: '26%' }, { top: '70%', right: '2%' },
+      { top: '58%', left: '2%' }, { top: '58%', right: '2%' },
     ],
   },
-  // สลับฟันปลาจากบนลงล่าง
-  diagonal: {
-    maxWidth: '42%',
+  // ใหม่: โค้งตามขอบบน ใต้พาดหัว ปลายสองข้างยกขึ้น
+  'top-arc': {
+    kind: 'blocks', maxWidth: '26%',
     slots: [
-      { top: '24%', left: '5%'  },
-      { top: '42%', right: '5%' },
-      { top: '60%', left: '5%'  },
-      { top: '78%', right: '5%' },
-      { top: '33%', right: '5%' },
-      { top: '69%', left: '5%'  },
+      { top: '30%', left: '2%' }, { top: '22%', left: '26%' },
+      { top: '22%', right: '26%' }, { top: '30%', right: '2%' },
+      { top: '42%', left: '2%' }, { top: '42%', right: '2%' },
     ],
   },
+  // ใหม่: กระจัดกระจายแบบไม่เป็นระเบียบ (จงใจให้ดูเป็นมือคน)
+  scattered: {
+    kind: 'blocks', maxWidth: '38%',
+    slots: [
+      { top: '25%', left: '6%' }, { top: '37%', right: '3%' },
+      { top: '63%', left: '2%' }, { top: '79%', right: '9%' },
+      { top: '50%', left: '28%' }, { top: '88%', left: '12%' },
+    ],
+  },
+  // ---------- ตระกูลพารากราฟก้อนเดียว ----------
+  'para-left':   { kind: 'paragraph', maxWidth: '46%', slots: [{ top: '38%', left: '5%' }] },
+  'para-right':  { kind: 'paragraph', maxWidth: '46%', slots: [{ top: '38%', right: '5%' }] },
+  'para-bottom': { kind: 'paragraph', maxWidth: '90%', slots: [{ top: '62%', left: '5%' }] },
 };
 const DEFAULT_PATTERN = 'split';
+const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
 
 // AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เอามาเรียงลำดับช่องวางกล่อง
 function orderSlots(slots, hint) {
@@ -187,18 +180,16 @@ function orderSlots(slots, hint) {
 
 /* ---------- ทรงป้ายพาดหัว ---------- */
 // คืน css + wrapper class ตามชื่อทรงจากชีต 20 หรือ renderDirectives.bannerMode
-function bannerStyle({ shape, radius, shadow, accent, textColor, isTag, isVertical }) {
+function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   const s = str(shape, 'rounded-rect').toLowerCase();
   const base = `background:${accent}; color:${textColor}; box-shadow:${shadow};`;
-  // v3.5: แถบแนวตั้งใช้ทรงเดียว เพราะริบบิ้น/เฉียงจะบิดเพี้ยนเมื่อหมุน 90 องศา
-  if (isVertical) return { css: `${base} border-radius:0;`, extra: '' };
   // v3.1: ป้ายแบบเว้นขอบจัดกึ่งกลางภาพ (เจ้าของขอ 28 ก.ค. 69)
-  const inset = 'left:50%; transform:translateX(-50%); max-width:88%; padding:0.42em 0.90em;';
-  const full = 'left:0; width:100%; padding:0.46em 4%;';
+  const inset = 'max-width:88%; padding:0.42em 0.90em;';
+  const full = 'width:100%; padding:0.46em 4%;';
 
   if (/text-only|underline|none/.test(s)) {
     return {
-      css: `left:50%; transform:translateX(-50%); max-width:88%; padding:0.10em 0;
+      css: `max-width:88%; padding:0.10em 0;
             background:transparent; color:#FFFFFF;
             border-bottom:0.16em solid ${accent}; box-shadow:none;
             text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.8);`,
@@ -222,7 +213,7 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag, isVertic
   }
   if (/skew|diagonal/.test(s)) {
     return {
-      css: `${inset.replace('transform:translateX(-50%);', '')} transform:translateX(-50%) skewX(-9deg); ${base} border-radius:0;`,
+      css: `${inset} ${base} border-radius:0; transform:skewX(-9deg);`,
       extra: 'transform:skewX(9deg); display:inline-block;',
     };
   }
@@ -259,30 +250,20 @@ function buildHtml(payload) {
   const shapeForBanner = bannerShapeRaw || bannerModeRaw || 'rounded-rect';
   const isTag = /tag|chip|pill|rounded/i.test(bannerModeRaw || bannerShapeRaw);
 
-  // v3.5: ค่าจากชีต 18 LAYOUT_MASTER — ของเดิมส่งมาแล้วแต่ไม่เคยถูกใช้เลย
-  // ชีต 18 คุม "อยู่ตรงไหน หนาแค่ไหน ชิดทางไหน เน้นสินค้าไหม"
-  // ชีต 20 คุม "รูปทรงอะไร มุมมนเท่าไหร่ มีเงาไหม" — แบ่งหน้าที่กันชัดเจน
-  const bannerPos = str(banner.position, 'top').toLowerCase();
-  const bannerHeightPct = Math.min(100, Math.max(6, num(banner.heightPercent, 14)));
-  const headlineAlign = ['left', 'center', 'right'].includes(str(dt.headlineAlignment).toLowerCase())
-    ? str(dt.headlineAlignment).toLowerCase() : 'center';
-  const productEmphasis = str(dt.productEmphasis, 'normal').toLowerCase();
-  const emphasiseProduct = /large|big|hero/.test(productEmphasis);
+  // v3.6: พาดหัวอยู่บนกึ่งกลางเสมอทุกเพจ (เจ้าของกำหนด 28 ก.ค. 69)
+  // ชีต 18 (Banner Position / Alignment / Product Emphasis) เลิกใช้แล้ว
+  //   - Position / Alignment: ไม่ใช้ เพราะกึ่งกลางบนหมด
+  //   - Product Emphasis: ซ้ำกับ Product Visibility Target ในชีต 66 จึงใช้ของ 66
+  //   - Height: ย้ายไปอยู่ชีต 20 ที่เดียวกับทรงป้าย
+  const bannerHeightPct = Math.min(40, Math.max(6, num(
+    (dt.bannerStyle || {})['Banner Height Percent'] ?? banner.heightPercent, 14
+  )));
+  const productVisibility = num(rd.productVisibilityTarget, 55);
+  const emphasiseProduct = productVisibility >= 60;
 
-  const isVertical = bannerPos === 'left' || bannerPos === 'right';
-  let placementCss;
-  if (isVertical) {
-    const side = bannerPos === 'right' ? 'right:0;' : 'left:0;';
-    placementCss = `${side} top:0; height:${bannerHeightPct}%; width:15%;
-      display:flex; align-items:center; justify-content:center;
-      writing-mode:vertical-rl; transform:rotate(180deg);`;
-  } else if (bannerPos === 'bottom') {
-    placementCss = `bottom:4.5%; ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
-      display:flex; align-items:center;`;
-  } else {
-    placementCss = `top:4.2%; ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
-      display:flex; align-items:center;`;
-  }
+  const placementCss = `top:4.2%; left:50%; transform:translateX(-50%);
+    ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
+    display:flex; align-items:center; justify-content:center;`;
 
   const bStyle = bannerStyle({
     shape: shapeForBanner,
@@ -291,7 +272,6 @@ function buildHtml(payload) {
     accent,
     textColor: headlineColor,
     isTag,
-    isVertical,
   });
 
   const hRaw = splitEmoji(payload.headline || '');
@@ -311,20 +291,38 @@ function buildHtml(payload) {
 
   // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
   // ถ้าเชื่อค่านั้นตรงๆ จะเหลือกล่องเดียวทั้งที่แตกได้หลายบรรทัด
-  // v3.4: ผังมาจากชีต 19 คอลัมน์ "Slot Pattern" (ผ่าน bubbleStyle ที่ WF3 ส่งมาทั้งแถว)
-  const patternKey = str(
+  // v3.6: ผังมาจากชีต 19 คอลัมน์ "Slot Pattern"
+  const requested = str(
     (dt.bubbleStyle || {})['Slot Pattern'] || bubble.slotPattern || rd.slotPattern,
     DEFAULT_PATTERN
   ).toLowerCase();
-  const pattern = PATTERNS[patternKey] || PATTERNS[DEFAULT_PATTERN];
+
+  // ชีต 66 บอกว่าเพจนี้ได้ข้อความกี่ก้อน: 1 ก้อน = พารากราฟ, หลายก้อน = บับเบิล
+  const wantsParagraph =
+    num(rd.textBlockCountMax, 0) === 1 ||
+    str(rd.bubbleMode) === '' && str(rd.structureType).includes('paragraph');
+  const isParagraphNow = rawBlocks.length === 1;
+  const useParagraph = wantsParagraph && isParagraphNow;
+
+  // กันใส่ผิดตระกูล: เพจพารากราฟที่เผลอใส่ผังบับเบิลไว้จะถูกสลับให้อัตโนมัติ
+  let patternKey = PATTERNS[requested] ? requested
+    : (useParagraph ? DEFAULT_PARAGRAPH_PATTERN : DEFAULT_PATTERN);
+  const requestedKind = PATTERNS[patternKey]?.kind;
+  if (useParagraph && requestedKind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
+  if (!useParagraph && requestedKind === 'paragraph') patternKey = DEFAULT_PATTERN;
+  const pattern = PATTERNS[patternKey];
+  const isParagraphLayout = pattern.kind === 'paragraph';
 
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
   const maxBlocks = Math.min(
-    wasSingleParagraph ? rawBlocks.length : configuredMax,
+    isParagraphLayout ? 1 : (wasSingleParagraph ? rawBlocks.length : configuredMax),
     pattern.slots.length
   );
-  const blocks = rawBlocks.slice(0, maxBlocks);
+  // พารากราฟรวมกลับเป็นก้อนเดียว ตัดบรรทัดในกล่อง
+  const blocks = isParagraphLayout
+    ? [rawBlocks.join('\n')]
+    : rawBlocks.slice(0, maxBlocks);
 
   // ---- กล่องข้อความ: รองรับ rgba / gradient / transparent / เส้นขอบ / ทรง pill ----
   const bubbleBgRaw = str(bubble.background, '#FFFFFF');
@@ -388,8 +386,7 @@ function buildHtml(payload) {
     letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
     white-space:nowrap;
     /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
-    text-align:${headlineAlign};
-    justify-content:${headlineAlign === 'left' ? 'flex-start' : headlineAlign === 'right' ? 'flex-end' : 'center'};
+    text-align:center;
   }
   .banner-inner { ${bStyle.extra} }
   .sticker {
@@ -416,7 +413,8 @@ function buildHtml(payload) {
     border-radius:${bubbleRadius}px;
     box-shadow:${isTransparent ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
-    white-space:nowrap;
+    white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
+    ${isParagraphLayout ? 'text-align:left; line-height:1.5;' : ''}
   }
 </style></head>
 <body>
@@ -440,10 +438,12 @@ function buildHtml(payload) {
     }
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
-    if (!${isVertical}) fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
-    document.querySelectorAll('.bubble').forEach(function (b) {
-      fit(b, b.firstElementChild || b, ${(parseFloat(pattern.maxWidth) / 100).toFixed(2)});
-    });
+    fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
+    if (!${isParagraphLayout}) {
+      document.querySelectorAll('.bubble').forEach(function (b) {
+        fit(b, b.firstElementChild || b, ${(parseFloat(pattern.maxWidth) / 100).toFixed(2)});
+      });
+    }
   </script>
 </body></html>`;
 }
