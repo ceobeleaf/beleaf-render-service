@@ -201,18 +201,23 @@ function buildHtml(payload) {
   if (!overlay.length && Array.isArray(payload?.panel?.overlayText)) {
     overlay = payload.panel.overlayText;
   }
-  const maxBlocks = Math.min(
-    num(rd.maxOverlayBlocks, num(bubble.maxCount, 4)), SLOTS.length
-  );
   const stickers = [];
-  // v3.1: WF2 บางสูตรส่ง overlayText มาเป็นก้อนเดียวที่มี \n ข้างใน
-  // ของเดิมตั้ง nowrap ทำให้ยุบเป็นบรรทัดเดียวยาว แล้วตัวย่ออัตโนมัติหดจนอ่านไม่ออก
-  // จึงแตกออกเป็นกล่องละบรรทัดก่อน
-  const blocks = overlay
+  // v3.2: WF2 บางสูตรส่ง overlayText มาเป็นก้อนเดียวที่มี \n ข้างใน
+  // ของเดิมตั้ง nowrap ทำให้ยุบเป็นบรรทัดเดียวยาว จึงแตกออกเป็นกล่องละบรรทัดก่อน
+  const rawBlocks = overlay
     .flatMap((t) => String(t ?? '').split(/\r?\n+/))
     .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return s.text; })
-    .filter(Boolean)
-    .slice(0, maxBlocks);
+    .filter(Boolean);
+
+  // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
+  // ถ้าเชื่อค่านั้นตรงๆ จะเหลือกล่องเดียวทั้งที่แตกได้หลายบรรทัด
+  const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
+  const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
+  const maxBlocks = Math.min(
+    wasSingleParagraph ? rawBlocks.length : configuredMax,
+    SLOTS.length
+  );
+  const blocks = rawBlocks.slice(0, maxBlocks);
 
   // ---- กล่องข้อความ: รองรับ rgba / gradient / transparent / เส้นขอบ / ทรง pill ----
   const bubbleBgRaw = str(bubble.background, '#FFFFFF');
@@ -274,6 +279,9 @@ function buildHtml(payload) {
     line-height:1.18;
     letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
     white-space:nowrap;
+    /* v3.2: แถบเต็มความกว้าง (H004 Solid Bar) ต้องจัดข้อความกึ่งกลางด้วย
+       ของเดิมไม่ได้กำหนดเลย เบราว์เซอร์จึงชิดซ้าย */
+    text-align:center;
   }
   .banner-inner { ${bStyle.extra} }
   .sticker {
