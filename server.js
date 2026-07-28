@@ -1,16 +1,13 @@
 /**
- * BELEAF Render Service v2
+ * BELEAF Render Service v3
  * ------------------------------------------------------------------
- * รับ payload เดิมจาก n8n Workflow 3 (POST /render, Bearer token, คืน PNG)
- * แต่วางเลย์เอาต์ใหม่ตามแบบที่วัดจากโพสต์ Dr.PONG / Nuriv จริง
+ * สัญญา API เหมือนเดิม: POST /render (Bearer) -> คืน PNG, GET /health
  *
- * สิ่งที่ต่างจากตัวเดิม
- *  1. ใช้ overlayText แหล่งเดียว ไม่ผสม panel.overlayText จนได้กล่องบ้างไม่ได้กล่องบ้าง
- *  2. อ่าน renderDirectives.bannerMode  -> "tag" = ป้ายมุมมนเว้นขอบ (แบบ Dr.PONG)
- *  3. อ่าน renderDirectives.fontScale   -> คุมขนาดตัวอักษรจริง
- *  4. ใช้ cornerRadius / shadow จากชีตจริง
- *  5. สีตัวอักษรบนป้ายเลือกอัตโนมัติจากความสว่างของสีพื้น (ดำบนส้ม แบบ Dr.PONG)
- *  6. ไม่มีลายน้ำ 1/1 และไม่ยัดอีโมจิลงกลางข้อความจนทับกัน
+ * v3 รองรับสไตล์จากชีตครบทุกแบบ (ของเดิม v2 รองรับแค่ทรงมุมมนอย่างเดียว)
+ *   ป้ายพาดหัว 6 ทรง : rounded-rect / pill / rect / ribbon-cut / skew-rect / text-only
+ *   กล่องข้อความ     : รองรับ rgba, gradient, transparent, เส้นขอบ, ทรง pill
+ *   ฟอนต์ 6 ตระกูล   : Anuphan, IBM Plex Sans Thai, Kanit, Mitr, Prompt, Sarabun
+ *   เงา 3 ระดับ      : none / soft / strong
  */
 
 const express = require('express');
@@ -44,27 +41,36 @@ const num = (v, d) => {
 };
 const esc = (s) =>
   String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// ความสว่างแบบ WCAG อย่างง่าย — ใช้เลือกว่าจะวางตัวอักษรสีดำหรือขาว
-function readableOn(hex) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(str(hex));
-  if (!m) return '#111111';
+// ตัดคำบอกน้ำหนักออกจากชื่อฟอนต์ เช่น "Kanit ExtraBold" -> "Kanit"
+const FONT_WEIGHT_WORDS =
+  /\s*(Thin|ExtraLight|UltraLight|Light|Regular|Book|Medium|SemiBold|DemiBold|Bold|ExtraBold|UltraBold|Black|Heavy)$/i;
+const fontFamily = (v, fallback) => {
+  const base = str(v, fallback).replace(FONT_WEIGHT_WORDS, '').trim();
+  return base || fallback;
+};
+
+const SHADOW = {
+  none: 'none',
+  soft: '0 10px 26px rgba(0,0,0,0.22)',
+  strong: '0 16px 40px rgba(0,0,0,0.38)',
+};
+const shadowOf = (v, d = 'soft') => SHADOW[str(v, d).toLowerCase()] ?? SHADOW[d];
+
+// เลือกสีตัวอักษรตามความสว่างพื้น: พื้นเข้ม -> ขาว / พื้นอ่อน -> เข้ม
+function readableOn(color) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(str(color));
+  if (!m) return '#FFFFFF';
   const int = parseInt(m[1], 16);
   const [r, g, b] = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map((c) => {
     const s = c / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // v2.2: พื้นเข้ม -> ตัวขาว / พื้นอ่อน -> ตัวเข้ม
-  // ส้ม #D9622B มี lum 0.236 จึงได้ตัวขาว ตามที่เจ้าของกำหนด
   return lum > 0.45 ? '#141414' : '#FFFFFF';
 }
 
-// ดึงอีโมจิที่ AI แทรกมากลางประโยคออก แล้วส่งกลับแยกไว้ใช้เป็นสติกเกอร์
 const EMOJI_RE =
   /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B00}-\u{2BFF}\u{1F900}-\u{1F9FF}]/gu;
 function splitEmoji(text) {
@@ -73,28 +79,23 @@ function splitEmoji(text) {
   return { text: t.replace(EMOJI_RE, '').replace(/\s{2,}/g, ' ').trim(), emoji: found };
 }
 
-/* ---------- ตัวคุมขนาด (สัดส่วนต่อความสูงภาพ) ----------
-   ตัวเลขชุดนี้วัดจากโพสต์ Dr.PONG ที่ยอดแชร์สูง
-   พาดหัวประมาณ 7-9% ของความสูงภาพ / ข้อความในกล่องประมาณ 4%      */
+/* ---------- ขนาด (สัดส่วนต่อความสูงภาพ) วัดจากโพสต์ Dr.PONG ที่แชร์สูง ---------- */
 const SCALE = {
   small:  { headline: 0.062, bubble: 0.036 },
   medium: { headline: 0.076, bubble: 0.042 },
   large:  { headline: 0.090, bubble: 0.048 },
 };
 
-/* ---------- ตำแหน่งกล่องข้อความ ----------
-   หลบตรงกลางภาพไว้ให้สินค้า วางเป็นคู่ซ้าย-ขวาเหมือน Dr.PONG      */
 const SLOTS = [
-  { key: 'top-left',    top: '20%', left: '5%'  },
-  { key: 'top-right',   top: '20%', right: '5%' },
-  { key: 'bottom-left', top: '70%', left: '5%'  },
-  { key: 'bottom-right',top: '70%', right: '5%' },
-  { key: 'mid-left',    top: '45%', left: '5%'  },
-  { key: 'mid-right',   top: '45%', right: '5%' },
+  { top: '20%', left: '5%'  },
+  { top: '20%', right: '5%' },
+  { top: '70%', left: '5%'  },
+  { top: '70%', right: '5%' },
+  { top: '45%', left: '5%'  },
+  { top: '45%', right: '5%' },
 ];
 
-// v2.2: AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เช่น "ด้านบนขวา"
-// ตัวเดิมไม่เคยใช้ค่านี้ กล่องเลยไปทับสินค้า
+// AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เอามาเรียงลำดับช่องวางกล่อง
 function orderSlots(hint) {
   const h = str(hint);
   const wantTop = /บน|top|upper/i.test(h);
@@ -104,16 +105,55 @@ function orderSlots(hint) {
   if (!wantTop && !wantBottom && !wantLeft && !wantRight) return SLOTS;
   const score = (sl) => {
     let n = 0;
-    const isTop = sl.top === '20%';
-    const isBottom = sl.top === '70%';
-    const isLeft = Boolean(sl.left);
-    if (wantTop && isTop) n += 2;
-    if (wantBottom && isBottom) n += 2;
-    if (wantLeft && isLeft) n += 1;
-    if (wantRight && !isLeft) n += 1;
+    if (wantTop && sl.top === '20%') n += 2;
+    if (wantBottom && sl.top === '70%') n += 2;
+    if (wantLeft && sl.left) n += 1;
+    if (wantRight && !sl.left) n += 1;
     return n;
   };
   return [...SLOTS].sort((a, b) => score(b) - score(a));
+}
+
+/* ---------- ทรงป้ายพาดหัว ---------- */
+// คืน css + wrapper class ตามชื่อทรงจากชีต 20 หรือ renderDirectives.bannerMode
+function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
+  const s = str(shape, 'rounded-rect').toLowerCase();
+  const base = `background:${accent}; color:${textColor}; box-shadow:${shadow};`;
+  const inset = 'left:5.5%; max-width:82%; padding:0.42em 0.80em;';
+  const full = 'left:0; width:100%; padding:0.46em 4%;';
+
+  if (/text-only|underline|none/.test(s)) {
+    return {
+      css: `left:5.5%; max-width:86%; padding:0.10em 0; background:transparent;
+            color:#FFFFFF; border-bottom:0.16em solid ${accent}; box-shadow:none;
+            text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.8);`,
+      extra: '',
+    };
+  }
+  if (/pill|floating/.test(s)) {
+    return { css: `${inset} ${base} border-radius:999px;`, extra: '' };
+  }
+  if (/^rect$|solid|bar/.test(s)) {
+    return { css: `${full} ${base} border-radius:0;`, extra: '' };
+  }
+  if (/ribbon/.test(s)) {
+    // ปลายขวาบากเป็นริบบิ้น
+    return {
+      css: `${inset} ${base} border-radius:0;
+            clip-path:polygon(0 0, calc(100% - 0.55em) 0, 100% 50%, calc(100% - 0.55em) 100%, 0 100%);
+            padding-right:1.35em;`,
+      extra: '',
+    };
+  }
+  if (/skew|diagonal/.test(s)) {
+    return {
+      css: `${inset} ${base} border-radius:0; transform:skewX(-9deg);`,
+      extra: 'transform:skewX(9deg); display:inline-block;',
+    };
+  }
+  // rounded-rect (ค่าเริ่มต้น)
+  const box = isTag ? inset : full;
+  return { css: `${box} ${base} border-radius:${radius}px;`, extra: '' };
 }
 
 function buildHtml(payload) {
@@ -127,79 +167,76 @@ function buildHtml(payload) {
   const W = 1080;
   const H = 1080;
 
-  // ---- ขนาดตัวอักษร ----
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
-    ? str(rd.fontScale)
-    : 'medium';
+    ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
   const headlinePx = Math.round(H * sc.headline);
   const bubblePx = Math.round(H * sc.bubble);
 
-  // ---- สีป้ายพาดหัว ----
   const palette = banner.palette || {};
   const accentKey = str(banner.defaultAccentKey, 'urgency');
   const accent = str(palette[accentKey], str(palette.urgency, '#D9622B'));
   const headlineColor = readableOn(accent);
 
-  // ---- ทรงป้ายพาดหัว ----
-  // bannerMode = tag  -> ป้ายมุมมนเว้นขอบ (ค่าที่ WF2 ส่งมาแต่ตัวเดิมทิ้ง)
-  const bannerMode = str(rd.bannerMode, str(banner.shape, 'bar')).toLowerCase();
-  const isTag = /tag|chip|pill|rounded/.test(bannerMode);
-  const radius = num(banner.cornerRadius, 24);
-  const bannerShadow =
-    str(banner.shadow, 'soft') === 'none'
-      ? 'none'
-      : '0 10px 28px rgba(0,0,0,0.22)';
+  const bannerShapeRaw = str(banner.shape, '');
+  const bannerModeRaw = str(rd.bannerMode, '');
+  const shapeForBanner = bannerShapeRaw || bannerModeRaw || 'rounded-rect';
+  const isTag = /tag|chip|pill|rounded/i.test(bannerModeRaw || bannerShapeRaw);
 
-  // ---- ข้อความ ----
-  const hRaw = splitEmoji(payload.headline || dt.headline || '');
+  const bStyle = bannerStyle({
+    shape: shapeForBanner,
+    radius: num(banner.cornerRadius, 24),
+    shadow: shadowOf(banner.shadow, 'soft'),
+    accent,
+    textColor: headlineColor,
+    isTag,
+  });
+
+  const hRaw = splitEmoji(payload.headline || '');
   const headline = hRaw.text;
 
-  // แหล่งเดียวเท่านั้น กัน bug กล่องบ้างไม่กล่องบ้าง
   let overlay = Array.isArray(payload.overlayText) ? payload.overlayText : [];
   if (!overlay.length && Array.isArray(payload?.panel?.overlayText)) {
     overlay = payload.panel.overlayText;
   }
   const maxBlocks = Math.min(
-    num(rd.maxOverlayBlocks, num(bubble.maxCount, 4)),
-    SLOTS.length
+    num(rd.maxOverlayBlocks, num(bubble.maxCount, 4)), SLOTS.length
   );
   const stickers = [];
   const blocks = overlay
-    .map((t) => {
-      const s = splitEmoji(t);
-      stickers.push(...s.emoji);
-      return s.text;
-    })
+    .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return s.text; })
     .filter(Boolean)
     .slice(0, maxBlocks);
 
-  const bubbleBg = str(bubble.background, '#FFFFFF');
+  // ---- กล่องข้อความ: รองรับ rgba / gradient / transparent / เส้นขอบ / ทรง pill ----
+  const bubbleBgRaw = str(bubble.background, '#FFFFFF');
+  const isGradient = /gradient\(/i.test(bubbleBgRaw);
+  const isTransparent = /^transparent$/i.test(bubbleBgRaw);
   const bubbleFg = str(bubble.textColor, '#1B1B1B');
-  const bubbleRadius = /rect/.test(str(bubble.shape, 'rounded-rect')) ? 22 : 999;
-  const bubbleShadow =
-    str(bubble.shadow, 'soft') === 'none'
-      ? 'none'
-      : '0 6px 18px rgba(0,0,0,0.15)';
+  const bubbleBorder = str(bubble.border, 'none');
+  const hasBorder = bubbleBorder && bubbleBorder.toLowerCase() !== 'none';
+  const bubbleShape = str(bubble.shape, 'rounded-rect').toLowerCase();
+  const bubbleRadius = /pill/.test(bubbleShape) ? 999 : 22;
+  const bubbleShadow = shadowOf(bubble.shadow, 'soft');
+  // พื้นโปร่งใสต้องมีเงาตัวอักษรไม่งั้นอ่านไม่ออกบนภาพถ่าย
+  const bubbleTextShadow = (isTransparent || /rgba\([^)]*0?\.[0-7]\d*\)/.test(bubbleBgRaw))
+    ? 'text-shadow:0 2px 8px rgba(0,0,0,.45);' : '';
+  const backdrop = /rgba\(/i.test(bubbleBgRaw) ? 'backdrop-filter:blur(6px);' : '';
 
-  const fontHeadline = str(typo.fontHeadline, 'Anuphan').replace(/\s*(ExtraBold|Bold)$/i, '');
-  const fontBody = str(typo.fontBody, 'IBM Plex Sans Thai');
+  const fontHeadline = fontFamily(typo.fontHeadline, 'Anuphan');
+  const fontBody = fontFamily(typo.fontBody, 'IBM Plex Sans Thai');
   const headlineWeight = num(typo.headlineWeight, 800);
 
   const slotOrder = orderSlots(rd.emptySpaceHint);
-  const bubbleHtml = blocks
-    .map((t, i) => {
-      const slot = slotOrder[i];
-      const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
-      return `<div class="bubble" style="top:${slot.top};${pos}">${esc(t)}</div>`;
-    })
-    .join('\n');
+  const bubbleHtml = blocks.map((t, i) => {
+    const slot = slotOrder[i];
+    const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
+    return `<div class="bubble" style="top:${slot.top};${pos}">${esc(t)}</div>`;
+  }).join('\n');
 
-  // สติกเกอร์อีโมจิ วางทับมุมป้าย ไม่ปนกลางข้อความ
   const showSticker =
-    decoration.includes('emoji_prefix') || decoration.includes('emoji_sticker');
-  // v2.1: Dr.PONG วางสติกเกอร์ 2 ตัวคร่อมป้ายพาดหัว (ซ้ายบน + ขวาของป้าย)
-  // ใช้อีโมจิที่ AI แทรกมาก่อน ถ้าไม่มีค่อยใช้ชุดกลางที่ไม่ผูกกับสรรพคุณ
+    decoration.includes('emoji_prefix') || decoration.includes('sticker') ||
+    decoration.includes('sparkle');
   const pool = [...hRaw.emoji, ...stickers].filter(Boolean);
   const leftChar = pool[0] || '\u2728';
   const rightChar = pool[1] || '';
@@ -208,15 +245,11 @@ function buildHtml(payload) {
       (rightChar ? `<div class="sticker sticker-right">${esc(rightChar)}</div>` : '')
     : '';
 
-  const bannerBox = isTag
-    ? `left:5.5%; max-width:80%; border-radius:${radius}px; padding:0.42em 0.78em;`
-    : `left:0; width:100%; border-radius:0; padding:0.46em 4%;`;
-
   return `<!doctype html>
 <html lang="th"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700;800&family=IBM+Plex+Sans+Thai:wght@500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Kanit:wght@400;500;600;700;800;900&family=Mitr:wght@400;500;600;700&family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:${W}px; height:${H}px; overflow:hidden; }
@@ -228,18 +261,15 @@ function buildHtml(payload) {
   }
   .banner {
     position:absolute; top:4.2%;
-    ${bannerBox}
-    background:${accent};
-    color:${headlineColor};
+    ${bStyle.css}
     font-family:'${fontHeadline}','Noto Color Emoji',sans-serif;
     font-weight:${headlineWeight};
     font-size:${headlinePx}px;
     line-height:1.18;
-    letter-spacing:${num(typo.letterSpacing, 0)}px;
-    box-shadow:${bannerShadow};
-    text-align:${str(dt.headlineAlignment, 'left') === 'center' && !isTag ? 'center' : 'left'};
+    letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
     white-space:nowrap;
   }
+  .banner-inner { ${bStyle.extra} }
   .sticker {
     position:absolute;
     font-family:'Noto Color Emoji',sans-serif;
@@ -251,15 +281,18 @@ function buildHtml(payload) {
   .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
   .bubble {
     position:absolute;
-    background:${bubbleBg};
+    background:${bubbleBgRaw};
     color:${bubbleFg};
+    ${hasBorder ? `border:${bubbleBorder};` : ''}
+    ${backdrop}
+    ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
     font-weight:700;
     font-size:${bubblePx}px;
     line-height:1.28;
     padding:0.52em 0.9em;
     border-radius:${bubbleRadius}px;
-    box-shadow:${bubbleShadow};
+    box-shadow:${isTransparent ? 'none' : bubbleShadow};
     max-width:44%;
     white-space:nowrap;
   }
@@ -268,11 +301,10 @@ function buildHtml(payload) {
   <div class="stage">
     <div class="photo"></div>
     ${stickerHtml}
-    <div class="banner" id="banner">${esc(headline)}</div>
+    <div class="banner" id="banner"><span class="banner-inner">${esc(headline)}</span></div>
     ${bubbleHtml}
   </div>
   <script>
-    // ย่อขนาดอัตโนมัติถ้าข้อความยาวเกินกรอบ กันตัวอักษรล้นออกนอกภาพ
     function fit(el, maxRatio) {
       if (!el) return;
       var limit = ${W} * maxRatio;
@@ -290,7 +322,8 @@ function buildHtml(payload) {
 
 /* ---------- routes ---------- */
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'beleaf-render-v2' }));
+app.get('/health', (_req, res) =>
+  res.json({ ok: true, service: 'beleaf-render-v3' }));
 
 app.post('/render', async (req, res) => {
   try {
@@ -298,7 +331,6 @@ app.post('/render', async (req, res) => {
       const sent = str(req.headers.authorization).replace(/^Bearer\s+/i, '');
       if (sent !== AUTH_TOKEN) return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
-
     const body = req.body || {};
     if (!body.imageBase64) return res.status(400).json({ error: 'IMAGE_BASE64_MISSING' });
     if (!str(body.headline)) return res.status(400).json({ error: 'HEADLINE_MISSING' });
@@ -308,15 +340,11 @@ app.post('/render', async (req, res) => {
 
     const browser = await getBrowser();
     const page = await browser.newPage({
-      viewport: { width: 1080, height: 1080 },
-      deviceScaleFactor: 1,
+      viewport: { width: 1080, height: 1080 }, deviceScaleFactor: 1,
     });
-
     await page.setContent(buildHtml(body), { waitUntil: 'networkidle', timeout: 60000 });
-    try {
-      await page.evaluate(() => document.fonts.ready);
-    } catch (_) {}
-    await page.waitForTimeout(220);
+    try { await page.evaluate(() => document.fonts.ready); } catch (_) {}
+    await page.waitForTimeout(250);
 
     const png = await page.screenshot({ type: 'png' });
     await page.close();
@@ -330,4 +358,4 @@ app.post('/render', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`beleaf-render-v2 listening on ${PORT}`));
+app.listen(PORT, () => console.log(`beleaf-render-v3 listening on ${PORT}`));
