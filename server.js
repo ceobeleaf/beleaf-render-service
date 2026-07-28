@@ -86,13 +86,15 @@ const SCALE = {
   large:  { headline: 0.090, bubble: 0.048 },
 };
 
+// v3.3: ขยับลงจากเดิม 20/45/70 -> 27/50/74
+// ของเดิมแถวบนชนพาดหัว ส่วนพื้นที่ล่างเหลือว่างเปล่า
 const SLOTS = [
-  { top: '20%', left: '5%'  },
-  { top: '20%', right: '5%' },
-  { top: '70%', left: '5%'  },
-  { top: '70%', right: '5%' },
-  { top: '45%', left: '5%'  },
-  { top: '45%', right: '5%' },
+  { top: '27%', left: '5%'  },
+  { top: '27%', right: '5%' },
+  { top: '74%', left: '5%'  },
+  { top: '74%', right: '5%' },
+  { top: '50%', left: '5%'  },
+  { top: '50%', right: '5%' },
 ];
 
 // AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เอามาเรียงลำดับช่องวางกล่อง
@@ -105,8 +107,8 @@ function orderSlots(hint) {
   if (!wantTop && !wantBottom && !wantLeft && !wantRight) return SLOTS;
   const score = (sl) => {
     let n = 0;
-    if (wantTop && sl.top === '20%') n += 2;
-    if (wantBottom && sl.top === '70%') n += 2;
+    if (wantTop && sl.top === '27%') n += 2;
+    if (wantBottom && sl.top === '74%') n += 2;
     if (wantLeft && sl.left) n += 1;
     if (wantRight && !sl.left) n += 1;
     return n;
