@@ -59,9 +59,9 @@ function readableOn(hex) {
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   });
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // v2.1: Dr.PONG ใช้ตัวดำบนส้ม อ่านชัดกว่าตัวขาวมาก
-  // เดิมตั้ง 0.45 ทำให้ส้ม #D9622B (lum 0.236) ได้ตัวขาว
-  return lum > 0.16 ? '#141414' : '#FFFFFF';
+  // v2.2: พื้นเข้ม -> ตัวขาว / พื้นอ่อน -> ตัวเข้ม
+  // ส้ม #D9622B มี lum 0.236 จึงได้ตัวขาว ตามที่เจ้าของกำหนด
+  return lum > 0.45 ? '#141414' : '#FFFFFF';
 }
 
 // ดึงอีโมจิที่ AI แทรกมากลางประโยคออก แล้วส่งกลับแยกไว้ใช้เป็นสติกเกอร์
@@ -85,13 +85,36 @@ const SCALE = {
 /* ---------- ตำแหน่งกล่องข้อความ ----------
    หลบตรงกลางภาพไว้ให้สินค้า วางเป็นคู่ซ้าย-ขวาเหมือน Dr.PONG      */
 const SLOTS = [
-  { top: '20%', left: '5%'  },
-  { top: '20%', right: '5%' },
-  { top: '70%', left: '5%'  },
-  { top: '70%', right: '5%' },
-  { top: '45%', left: '5%'  },
-  { top: '45%', right: '5%' },
+  { key: 'top-left',    top: '20%', left: '5%'  },
+  { key: 'top-right',   top: '20%', right: '5%' },
+  { key: 'bottom-left', top: '70%', left: '5%'  },
+  { key: 'bottom-right',top: '70%', right: '5%' },
+  { key: 'mid-left',    top: '45%', left: '5%'  },
+  { key: 'mid-right',   top: '45%', right: '5%' },
 ];
+
+// v2.2: AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เช่น "ด้านบนขวา"
+// ตัวเดิมไม่เคยใช้ค่านี้ กล่องเลยไปทับสินค้า
+function orderSlots(hint) {
+  const h = str(hint);
+  const wantTop = /บน|top|upper/i.test(h);
+  const wantBottom = /ล่าง|bottom|lower/i.test(h);
+  const wantLeft = /ซ้าย|left/i.test(h);
+  const wantRight = /ขวา|right/i.test(h);
+  if (!wantTop && !wantBottom && !wantLeft && !wantRight) return SLOTS;
+  const score = (sl) => {
+    let n = 0;
+    const isTop = sl.top === '20%';
+    const isBottom = sl.top === '70%';
+    const isLeft = Boolean(sl.left);
+    if (wantTop && isTop) n += 2;
+    if (wantBottom && isBottom) n += 2;
+    if (wantLeft && isLeft) n += 1;
+    if (wantRight && !isLeft) n += 1;
+    return n;
+  };
+  return [...SLOTS].sort((a, b) => score(b) - score(a));
+}
 
 function buildHtml(payload) {
   const dt = payload?.design?.designTemplate || {};
@@ -163,9 +186,10 @@ function buildHtml(payload) {
   const fontBody = str(typo.fontBody, 'IBM Plex Sans Thai');
   const headlineWeight = num(typo.headlineWeight, 800);
 
+  const slotOrder = orderSlots(rd.emptySpaceHint);
   const bubbleHtml = blocks
     .map((t, i) => {
-      const slot = SLOTS[i];
+      const slot = slotOrder[i];
       const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
       return `<div class="bubble" style="top:${slot.top};${pos}">${esc(t)}</div>`;
     })
