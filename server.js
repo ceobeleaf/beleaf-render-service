@@ -187,9 +187,11 @@ function orderSlots(slots, hint) {
 
 /* ---------- ทรงป้ายพาดหัว ---------- */
 // คืน css + wrapper class ตามชื่อทรงจากชีต 20 หรือ renderDirectives.bannerMode
-function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
+function bannerStyle({ shape, radius, shadow, accent, textColor, isTag, isVertical }) {
   const s = str(shape, 'rounded-rect').toLowerCase();
   const base = `background:${accent}; color:${textColor}; box-shadow:${shadow};`;
+  // v3.5: แถบแนวตั้งใช้ทรงเดียว เพราะริบบิ้น/เฉียงจะบิดเพี้ยนเมื่อหมุน 90 องศา
+  if (isVertical) return { css: `${base} border-radius:0;`, extra: '' };
   // v3.1: ป้ายแบบเว้นขอบจัดกึ่งกลางภาพ (เจ้าของขอ 28 ก.ค. 69)
   const inset = 'left:50%; transform:translateX(-50%); max-width:88%; padding:0.42em 0.90em;';
   const full = 'left:0; width:100%; padding:0.46em 4%;';
@@ -244,6 +246,7 @@ function buildHtml(payload) {
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
   const headlinePx = Math.round(H * sc.headline);
+  // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(H * sc.bubble);
 
   const palette = banner.palette || {};
@@ -256,6 +259,31 @@ function buildHtml(payload) {
   const shapeForBanner = bannerShapeRaw || bannerModeRaw || 'rounded-rect';
   const isTag = /tag|chip|pill|rounded/i.test(bannerModeRaw || bannerShapeRaw);
 
+  // v3.5: ค่าจากชีต 18 LAYOUT_MASTER — ของเดิมส่งมาแล้วแต่ไม่เคยถูกใช้เลย
+  // ชีต 18 คุม "อยู่ตรงไหน หนาแค่ไหน ชิดทางไหน เน้นสินค้าไหม"
+  // ชีต 20 คุม "รูปทรงอะไร มุมมนเท่าไหร่ มีเงาไหม" — แบ่งหน้าที่กันชัดเจน
+  const bannerPos = str(banner.position, 'top').toLowerCase();
+  const bannerHeightPct = Math.min(100, Math.max(6, num(banner.heightPercent, 14)));
+  const headlineAlign = ['left', 'center', 'right'].includes(str(dt.headlineAlignment).toLowerCase())
+    ? str(dt.headlineAlignment).toLowerCase() : 'center';
+  const productEmphasis = str(dt.productEmphasis, 'normal').toLowerCase();
+  const emphasiseProduct = /large|big|hero/.test(productEmphasis);
+
+  const isVertical = bannerPos === 'left' || bannerPos === 'right';
+  let placementCss;
+  if (isVertical) {
+    const side = bannerPos === 'right' ? 'right:0;' : 'left:0;';
+    placementCss = `${side} top:0; height:${bannerHeightPct}%; width:15%;
+      display:flex; align-items:center; justify-content:center;
+      writing-mode:vertical-rl; transform:rotate(180deg);`;
+  } else if (bannerPos === 'bottom') {
+    placementCss = `bottom:4.5%; ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
+      display:flex; align-items:center;`;
+  } else {
+    placementCss = `top:4.2%; ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
+      display:flex; align-items:center;`;
+  }
+
   const bStyle = bannerStyle({
     shape: shapeForBanner,
     radius: num(banner.cornerRadius, 24),
@@ -263,6 +291,7 @@ function buildHtml(payload) {
     accent,
     textColor: headlineColor,
     isTag,
+    isVertical,
   });
 
   const hRaw = splitEmoji(payload.headline || '');
@@ -349,7 +378,8 @@ function buildHtml(payload) {
     background-size:cover; background-position:center;
   }
   .banner {
-    position:absolute; top:4.2%;
+    position:absolute;
+    ${placementCss}
     ${bStyle.css}
     font-family:'${fontHeadline}','Noto Color Emoji',sans-serif;
     font-weight:${headlineWeight};
@@ -357,9 +387,9 @@ function buildHtml(payload) {
     line-height:1.18;
     letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
     white-space:nowrap;
-    /* v3.2: แถบเต็มความกว้าง (H004 Solid Bar) ต้องจัดข้อความกึ่งกลางด้วย
-       ของเดิมไม่ได้กำหนดเลย เบราว์เซอร์จึงชิดซ้าย */
-    text-align:center;
+    /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
+    text-align:${headlineAlign};
+    justify-content:${headlineAlign === 'left' ? 'flex-start' : headlineAlign === 'right' ? 'flex-end' : 'center'};
   }
   .banner-inner { ${bStyle.extra} }
   .sticker {
@@ -380,12 +410,12 @@ function buildHtml(payload) {
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
     font-weight:700;
-    font-size:${bubblePx}px;
+    font-size:${emphasiseProduct ? Math.round(bubblePx * 0.88) : bubblePx}px;
     line-height:1.28;
     padding:0.52em 0.9em;
     border-radius:${bubbleRadius}px;
     box-shadow:${isTransparent ? 'none' : bubbleShadow};
-    max-width:${pattern.maxWidth};
+    max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
     white-space:nowrap;
   }
 </style></head>
@@ -410,7 +440,7 @@ function buildHtml(payload) {
     }
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
-    fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
+    if (!${isVertical}) fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
     document.querySelectorAll('.bubble').forEach(function (b) {
       fit(b, b.firstElementChild || b, ${(parseFloat(pattern.maxWidth) / 100).toFixed(2)});
     });
