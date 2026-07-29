@@ -1,5 +1,5 @@
 /**
- * BELEAF Render Service v3 ( 4.2 )
+ * BELEAF Render Service v3
  * ------------------------------------------------------------------
  * สัญญา API เหมือนเดิม: POST /render (Bearer) -> คืน PNG, GET /health
  *
@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.2';
+const BUILD = 'v4.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -406,7 +406,9 @@ function buildHtml(payload) {
     /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
     text-align:center;
   }
-  .banner-inner { ${bStyle.extra} }
+  /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
+     ทำให้ลูปย่อฟอนต์ไม่เคยหมุน (ต้นเหตุตัวหนังสือล้นตั้งแต่ v3.1) */
+  .banner-inner { display:inline-block; ${bStyle.extra} }
   .sticker {
     position:absolute;
     font-family:'Noto Color Emoji',sans-serif;
@@ -416,6 +418,7 @@ function buildHtml(payload) {
   }
   .sticker-left  { top:0.8%; left:2%; }
   .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
+  .bubble > span { display:inline-block; }
   .bubble {
     position:absolute;
     background:${bubbleBgRaw};
