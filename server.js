@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.5';
+const BUILD = 'v4.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -582,6 +582,27 @@ function buildHtml(payload) {
       if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(H * 0.92)});
       else fitBubble(b, ratio);
     });
+
+    // v4.6: กันกล่องข้อความทับป้ายพาดหัว
+    // บางผังมีช่องสำรองอยู่สูงถึง 14% แต่ป้ายกินลงมาถึงราว 19% (ความสูงป้ายมาจากชีต 20)
+    // ตัวจัดลำดับช่องอาจหยิบช่องสูงนั้นมาใช้ กล่องแรกจึงไปทับป้าย
+    // แก้ด้วยการเลื่อนทั้งชุดลงเท่ากัน เพื่อรักษาระยะห่างของผังเดิมไว้
+    // ถ้าเลื่อนแล้วกล่องล่างสุดจะตกขอบ จะเลื่อนเท่าที่พื้นที่เหลือเท่านั้น
+    var bubbles = Array.prototype.slice.call(document.querySelectorAll('.bubble'));
+    if (bannerBox && bubbles.length) {
+      var safeTop = bannerBox.getBoundingClientRect().bottom + ${Math.round(H * 0.025)};
+      var rects = bubbles.map(function (b) { return b.getBoundingClientRect(); });
+      var topMost = Math.min.apply(null, rects.map(function (r) { return r.top; }));
+      if (topMost < safeTop) {
+        var shift = safeTop - topMost;
+        var lowest = Math.max.apply(null, rects.map(function (r) { return r.bottom; }));
+        var room = ${Math.round(H * 0.96)} - lowest;
+        if (room < shift) shift = Math.max(0, room);
+        if (shift > 0) {
+          bubbles.forEach(function (b, i) { b.style.top = (rects[i].top + shift) + 'px'; });
+        }
+      }
+    }
   </script>
 </body></html>`;
 }
