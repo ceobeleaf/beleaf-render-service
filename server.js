@@ -1,5 +1,5 @@
 /**
- * BELEAF Render Service v3
+ * BELEAF Render Service v3 ( 4.2 )
  * ------------------------------------------------------------------
  * สัญญา API เหมือนเดิม: POST /render (Bearer) -> คืน PNG, GET /health
  *
