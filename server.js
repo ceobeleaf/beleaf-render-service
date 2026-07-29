@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.7';
+const BUILD = 'v4.8';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -568,25 +568,13 @@ function buildHtml(payload) {
 
     // v4.2: พารากราฟไม่เคยมีตัวกันความสูง ถ้าตัดบรรทัดแล้วยาวเกินก็หลุดขอบล่างเงียบๆ
     function fitParagraph(box, ratio, bottomLimit) {
-      // v4.7: ปัญหาที่เห็นใน P001/P007 คือบรรทัดต้นทางยาวเกินกล่อง
-      // เบราว์เซอร์เลยตัดลงมา เกิดบรรทัดกำพร้าคำเดียว
-      // แก้โดยตั้ง white-space:pre ชั่วคราวเพื่อวัดบรรทัดที่ยาวที่สุดจริงๆ
-      // แล้วย่อจนบรรทัดนั้นพอดี จากนั้นคืนค่าเดิมและคุมความสูงตามเดิม
-      var span = box.firstElementChild || box;
+      // v4.8: เลิกย่อฟอนต์เพื่อกันบรรทัดตัด
+      // v4.7 ตั้ง white-space:pre แล้วย่อจนบรรทัดยาวสุดพอดีกล่อง
+      // แต่พอเทียบกับโพสต์ Dr.PONG จริงพบว่าเขาตัดกลางคำเต็มไปหมดและยังอ่านดี
+      // การกันบรรทัดตัดจึงไม่จำเป็น และทำให้ฟอนต์เล็กเกินเหตุเมื่อบรรทัดยาว
+      // เหลือแค่คุมความสูงไม่ให้ล้นขอบล่าง ปล่อยการตัดบรรทัดตามธรรมชาติ
       var size = parseFloat(getComputedStyle(box).fontSize);
       var guard = 0;
-      var prevWS = span.style.whiteSpace;
-      span.style.whiteSpace = 'pre';
-      while (guard < 90) {
-        var padX = size * 0.9 * 2;
-        var limit = ${W} * ratio - padX;
-        if (span.scrollWidth <= limit) break;
-        if (size <= 30) break;
-        size -= 1; box.style.fontSize = size + 'px'; guard++;
-      }
-      span.style.whiteSpace = prevWS || 'pre-line';
-
-      guard = 0;
       while (guard < 90) {
         if (box.getBoundingClientRect().bottom <= bottomLimit) return;
         if (size <= 26) return;
