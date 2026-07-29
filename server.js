@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.6';
+const BUILD = 'v4.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -159,12 +159,13 @@ const PATTERNS = {
 // v4.2: ฟอนต์พารากราฟแปรตามจำนวนบรรทัด — วัดได้ 5 บรรทัด 53px / 7 บรรทัด 43px
 // ของเดิมใช้ค่าเดียว บรรทัดน้อยเลยดูโหวง บรรทัดเยอะเลยล้น
 function paragraphFont(lines) {
-  if (lines <= 4) return 0.050;   // 54px
-  if (lines <= 5) return 0.048;   // 52px
-  if (lines <= 6) return 0.044;   // 48px
-  if (lines <= 7) return 0.040;   // 43px
-  if (lines <= 9) return 0.036;   // 39px
-  return 0.032;                   // 35px
+  // v4.7: ลดลงจาก v4.5 ราว 8% ทุกช่วง ตามที่เจ้าของแจ้งว่าตัวหนังสือใหญ่ไป
+  if (lines <= 4) return 0.046;   // 50px
+  if (lines <= 5) return 0.044;   // 48px
+  if (lines <= 6) return 0.040;   // 43px
+  if (lines <= 7) return 0.037;   // 40px
+  if (lines <= 9) return 0.033;   // 36px
+  return 0.030;                   // 32px
 }
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
@@ -567,11 +568,27 @@ function buildHtml(payload) {
 
     // v4.2: พารากราฟไม่เคยมีตัวกันความสูง ถ้าตัดบรรทัดแล้วยาวเกินก็หลุดขอบล่างเงียบๆ
     function fitParagraph(box, ratio, bottomLimit) {
+      // v4.7: ปัญหาที่เห็นใน P001/P007 คือบรรทัดต้นทางยาวเกินกล่อง
+      // เบราว์เซอร์เลยตัดลงมา เกิดบรรทัดกำพร้าคำเดียว
+      // แก้โดยตั้ง white-space:pre ชั่วคราวเพื่อวัดบรรทัดที่ยาวที่สุดจริงๆ
+      // แล้วย่อจนบรรทัดนั้นพอดี จากนั้นคืนค่าเดิมและคุมความสูงตามเดิม
+      var span = box.firstElementChild || box;
       var size = parseFloat(getComputedStyle(box).fontSize);
       var guard = 0;
-      while (guard < 80) {
-        var r = box.getBoundingClientRect();
-        if (r.width <= ${W} * ratio + 1 && r.bottom <= bottomLimit) return;
+      var prevWS = span.style.whiteSpace;
+      span.style.whiteSpace = 'pre';
+      while (guard < 90) {
+        var padX = size * 0.9 * 2;
+        var limit = ${W} * ratio - padX;
+        if (span.scrollWidth <= limit) break;
+        if (size <= 30) break;
+        size -= 1; box.style.fontSize = size + 'px'; guard++;
+      }
+      span.style.whiteSpace = prevWS || 'pre-line';
+
+      guard = 0;
+      while (guard < 90) {
+        if (box.getBoundingClientRect().bottom <= bottomLimit) return;
         if (size <= 26) return;
         size -= 1; box.style.fontSize = size + 'px'; guard++;
       }
