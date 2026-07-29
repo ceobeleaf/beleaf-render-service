@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v3.7';
+const BUILD = 'v4.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -88,36 +88,38 @@ const SCALE = {
   large:  { headline: 0.090, bubble: 0.048 },
 };
 
-// v3.6: ผังวางกล่องข้อความ เลือกรายเพจผ่านชีต 19 คอลัมน์ "Slot Pattern"
-// แยกสองตระกูลตามชีต 66: หลายก้อนสั้น (LAYOUT03) กับก้อนเดียวยาว (LAYOUT02)
+// v4.1: ผังวางกล่องข้อความ — กำหนดตำแหน่ง ความกว้าง และขนาดตัวอักษร แยกรายผัง
+// ของเดิมใช้ขนาดเดียวทุกผัง ทำให้ผังสองคอลัมน์กล่องบวมจนเบียดสินค้า
+//   font  = สัดส่วนความสูงภาพ (อ้างอิงงานจริงที่วัดได้ ~4.1% สำหรับผังคอลัมน์เดียว)
+//   maxWidth ของผังคอลัมน์เดียวไม่เกิน 53% เพื่อไม่ให้ล้ำกึ่งกลางไปทับสินค้า
 const PATTERNS = {
-  // ---------- ตระกูลหลายก้อน ----------
   split: {
-    kind: 'blocks', maxWidth: '44%',
+    kind: 'blocks', maxWidth: '43%', font: 0.038,
     slots: [
       { top: '27%', left: '5%' }, { top: '27%', right: '5%' },
-      { top: '74%', left: '5%' }, { top: '74%', right: '5%' },
+      { top: '73%', left: '5%' }, { top: '73%', right: '5%' },
       { top: '50%', left: '5%' }, { top: '50%', right: '5%' },
     ],
   },
+  // เรียงคอลัมน์เดียว ระยะขอบสลับเล็กน้อยให้ดูเป็นมือคน
   'left-stack': {
-    kind: 'blocks', maxWidth: '48%',
+    kind: 'blocks', maxWidth: '53%', font: 0.041,
     slots: [
-      { top: '26%', left: '5%' }, { top: '39%', left: '5%' },
-      { top: '52%', left: '5%' }, { top: '65%', left: '5%' },
-      { top: '78%', left: '5%' }, { top: '13%', left: '5%' },
+      { top: '27%', left: '4%' },  { top: '41%', left: '9%' },
+      { top: '56%', left: '13%' }, { top: '71%', left: '8%' },
+      { top: '85%', left: '4%' },  { top: '14%', left: '9%' },
     ],
   },
   'right-stack': {
-    kind: 'blocks', maxWidth: '48%',
+    kind: 'blocks', maxWidth: '53%', font: 0.041,
     slots: [
-      { top: '26%', right: '5%' }, { top: '39%', right: '5%' },
-      { top: '52%', right: '5%' }, { top: '65%', right: '5%' },
-      { top: '78%', right: '5%' }, { top: '13%', right: '5%' },
+      { top: '27%', right: '4%' },  { top: '41%', right: '9%' },
+      { top: '56%', right: '13%' }, { top: '71%', right: '8%' },
+      { top: '85%', right: '4%' },  { top: '14%', right: '9%' },
     ],
   },
   'four-corners': {
-    kind: 'blocks', maxWidth: '40%',
+    kind: 'blocks', maxWidth: '39%', font: 0.036,
     slots: [
       { top: '24%', left: '4%' }, { top: '24%', right: '4%' },
       { top: '78%', left: '4%' }, { top: '78%', right: '4%' },
@@ -125,35 +127,32 @@ const PATTERNS = {
     ],
   },
   'bottom-arc': {
-    kind: 'blocks', maxWidth: '26%',
+    kind: 'blocks', maxWidth: '25%', font: 0.033,
     slots: [
       { top: '70%', left: '2%' }, { top: '80%', left: '26%' },
       { top: '80%', right: '26%' }, { top: '70%', right: '2%' },
       { top: '58%', left: '2%' }, { top: '58%', right: '2%' },
     ],
   },
-  // ใหม่: โค้งตามขอบบน ใต้พาดหัว ปลายสองข้างยกขึ้น
   'top-arc': {
-    kind: 'blocks', maxWidth: '26%',
+    kind: 'blocks', maxWidth: '25%', font: 0.033,
     slots: [
       { top: '30%', left: '2%' }, { top: '22%', left: '26%' },
       { top: '22%', right: '26%' }, { top: '30%', right: '2%' },
       { top: '42%', left: '2%' }, { top: '42%', right: '2%' },
     ],
   },
-  // ใหม่: กระจัดกระจายแบบไม่เป็นระเบียบ (จงใจให้ดูเป็นมือคน)
   scattered: {
-    kind: 'blocks', maxWidth: '38%',
+    kind: 'blocks', maxWidth: '37%', font: 0.036,
     slots: [
-      { top: '25%', left: '6%' }, { top: '37%', right: '3%' },
-      { top: '63%', left: '2%' }, { top: '79%', right: '9%' },
+      { top: '25%', left: '6%' }, { top: '38%', right: '3%' },
+      { top: '62%', left: '2%' }, { top: '79%', right: '9%' },
       { top: '50%', left: '28%' }, { top: '88%', left: '12%' },
     ],
   },
-  // ---------- ตระกูลพารากราฟก้อนเดียว ----------
-  'para-left':   { kind: 'paragraph', maxWidth: '46%', slots: [{ top: '38%', left: '5%' }] },
-  'para-right':  { kind: 'paragraph', maxWidth: '46%', slots: [{ top: '38%', right: '5%' }] },
-  'para-bottom': { kind: 'paragraph', maxWidth: '90%', slots: [{ top: '62%', left: '5%' }] },
+  'para-left':   { kind: 'paragraph', maxWidth: '46%', font: 0.036, slots: [{ top: '36%', left: '5%' }] },
+  'para-right':  { kind: 'paragraph', maxWidth: '46%', font: 0.036, slots: [{ top: '36%', right: '5%' }] },
+  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ top: '62%', left: '6%' }] },
 };
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
@@ -240,7 +239,7 @@ function buildHtml(payload) {
   const sc = SCALE[scaleKey];
   const headlinePx = Math.round(H * sc.headline);
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
-  const bubblePx = Math.round(H * sc.bubble);
+  const bubblePx = Math.round(H * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
   const palette = banner.palette || {};
   const accentKey = str(banner.defaultAccentKey, 'urgency');
@@ -293,28 +292,31 @@ function buildHtml(payload) {
 
   // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
   // ถ้าเชื่อค่านั้นตรงๆ จะเหลือกล่องเดียวทั้งที่แตกได้หลายบรรทัด
-  // v3.6: ผังมาจากชีต 19 คอลัมน์ "Slot Pattern"
-  const requested = str(
-    (dt.bubbleStyle || {})['Slot Pattern'] || bubble.slotPattern || rd.slotPattern,
-    DEFAULT_PATTERN
-  ).toLowerCase();
-
-  // ชีต 66 บอกว่าเพจนี้ได้ข้อความกี่ก้อน: 1 ก้อน = พารากราฟ, หลายก้อน = บับเบิล
-  // v3.7: ชีต 66 บอกว่าเพจนี้ต้องการข้อความก้อนเดียวหรือหลายก้อน
-  // ของเดิมเช็ค rawBlocks.length === 1 ซึ่งผิด เพราะแตก \n ไปแล้วก่อนหน้านั้น
-  // พารากราฟ 7 บรรทัดจึงถูกนับเป็น 7 ก้อน แล้วยัดเป็นกล่องบรรทัดเดียวจนล้นกรอบ
+  // v4.0: ชีต 19 เก็บผังไว้สองช่องต่อสไตล์ — เลือกตามรูปทรงเนื้อหาที่ได้จริง
+  //   Slot Pattern       = ใช้เมื่อเนื้อหาเป็นหลายก้อนสั้น
+  //   Paragraph Pattern  = ใช้เมื่อเนื้อหาเป็นพารากราฟก้อนเดียว
+  // ของเดิมมีช่องเดียว ทำให้ผังกับเนื้อหาไม่ตรงกันทุกครั้งที่ WF2 เปลี่ยน layout
+  const styleRow = dt.bubbleStyle || {};
   const useParagraph =
     num(rd.textBlockCountMax, 0) === 1 ||
     (str(rd.bubbleMode) === '' && str(rd.structureType).includes('paragraph'));
 
-  // กันใส่ผิดตระกูล: เพจพารากราฟที่เผลอใส่ผังบับเบิลไว้จะถูกสลับให้อัตโนมัติ
-  let patternKey = PATTERNS[requested] ? requested
-    : (useParagraph ? DEFAULT_PARAGRAPH_PATTERN : DEFAULT_PATTERN);
-  const requestedKind = PATTERNS[patternKey]?.kind;
-  if (useParagraph && requestedKind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
-  if (!useParagraph && requestedKind === 'paragraph') patternKey = DEFAULT_PATTERN;
+  const requested = useParagraph
+    ? str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN)
+    : str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN);
+
+  // กันไว้อีกชั้น เผื่อชีตกรอกผิดตระกูล
+  let patternKey = requested.toLowerCase();
+  if (!PATTERNS[patternKey]) patternKey = useParagraph ? DEFAULT_PARAGRAPH_PATTERN : DEFAULT_PATTERN;
+  if (useParagraph && PATTERNS[patternKey].kind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
+  if (!useParagraph && PATTERNS[patternKey].kind === 'paragraph') patternKey = DEFAULT_PATTERN;
+
   const pattern = PATTERNS[patternKey];
   const isParagraphLayout = pattern.kind === 'paragraph';
+  // v4.1: ขนาดตัวอักษรในกล่องมาจากผัง ถ้าเน้นสินค้าค่อยหรี่ลงอีก 8%
+  const bubbleFontPx = Math.round(
+    H * num(pattern.font, sc.bubble) * (emphasiseProduct ? 0.92 : 1)
+  );
 
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
@@ -322,7 +324,6 @@ function buildHtml(payload) {
     isParagraphLayout ? 1 : (wasSingleParagraph ? rawBlocks.length : configuredMax),
     pattern.slots.length
   );
-  // พารากราฟรวมกลับเป็นก้อนเดียว ตัดบรรทัดในกล่อง
   const blocks = isParagraphLayout
     ? [rawBlocks.join('\n')]
     : rawBlocks.slice(0, maxBlocks);
@@ -410,7 +411,7 @@ function buildHtml(payload) {
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
     font-weight:700;
-    font-size:${emphasiseProduct ? Math.round(bubblePx * 0.88) : bubblePx}px;
+    font-size:${bubbleFontPx}px;
     line-height:1.28;
     padding:0.52em 0.9em;
     border-radius:${bubbleRadius}px;
