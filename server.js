@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.1';
+const BUILD = 'v4.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -150,10 +150,22 @@ const PATTERNS = {
       { top: '50%', left: '28%' }, { top: '88%', left: '12%' },
     ],
   },
-  'para-left':   { kind: 'paragraph', maxWidth: '46%', font: 0.036, slots: [{ top: '36%', left: '5%' }] },
-  'para-right':  { kind: 'paragraph', maxWidth: '46%', font: 0.036, slots: [{ top: '36%', right: '5%' }] },
-  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ top: '62%', left: '6%' }] },
+  // v4.2: วัดจากภาพอ้างอิงจริง — กล่องพารากราฟกว้าง 49-50% เริ่มที่ 30-31% ไม่ใช่ 46%/36%
+  'para-left':   { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', left: '4%' }] },
+  'para-right':  { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', right: '3%' }] },
+  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ top: '58%', left: '6%' }] },
 };
+
+// v4.2: ฟอนต์พารากราฟแปรตามจำนวนบรรทัด — วัดได้ 5 บรรทัด 53px / 7 บรรทัด 43px
+// ของเดิมใช้ค่าเดียว บรรทัดน้อยเลยดูโหวง บรรทัดเยอะเลยล้น
+function paragraphFont(lines) {
+  if (lines <= 4) return 0.050;   // 54px
+  if (lines <= 5) return 0.048;   // 52px
+  if (lines <= 6) return 0.044;   // 48px
+  if (lines <= 7) return 0.040;   // 43px
+  if (lines <= 9) return 0.036;   // 39px
+  return 0.032;                   // 35px
+}
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
 
@@ -314,9 +326,11 @@ function buildHtml(payload) {
   const pattern = PATTERNS[patternKey];
   const isParagraphLayout = pattern.kind === 'paragraph';
   // v4.1: ขนาดตัวอักษรในกล่องมาจากผัง ถ้าเน้นสินค้าค่อยหรี่ลงอีก 8%
-  const bubbleFontPx = Math.round(
-    H * num(pattern.font, sc.bubble) * (emphasiseProduct ? 0.92 : 1)
-  );
+  const paraLineCount = pattern.kind === 'paragraph' ? Math.max(1, rawBlocks.length) : 0;
+  const fontRatio = pattern.kind === 'paragraph'
+    ? paragraphFont(paraLineCount)
+    : num(pattern.font, sc.bubble);
+  const bubbleFontPx = Math.round(H * fontRatio * (emphasiseProduct ? 0.92 : 1));
 
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
@@ -443,11 +457,44 @@ function buildHtml(payload) {
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
     fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
-    if (!${isParagraphLayout}) {
-      document.querySelectorAll('.bubble').forEach(function (b) {
-        fit(b, b.firstElementChild || b, ${(parseFloat(pattern.maxWidth) / 100).toFixed(2)});
-      });
+
+    // v4.2: กันตัวหนังสือทะลุกล่อง
+    // ของเดิมเทียบตัวหนังสือกับความกว้างกล่องเต็ม (ซึ่งรวม padding อยู่แล้ว)
+    // จึงหยุดย่อเร็วไปเท่ากับ padding ซ้ายขวา แล้ว nowrap ทำให้ล้นออกนอกพื้นสี
+    function fitBubble(box, ratio) {
+      var span = box.firstElementChild || box;
+      var size = parseFloat(getComputedStyle(box).fontSize);
+      var guard = 0;
+      while (guard < 80) {
+        var padX = size * 0.9 * 2;               // ตรงกับ padding:0.52em 0.9em
+        var limit = ${W} * ratio - padX;
+        if (span.scrollWidth <= limit) return;
+        if (size <= 26) break;                    // ย่อจนสุดแล้วยังไม่พอ
+        size -= 1; box.style.fontSize = size + 'px'; guard++;
+      }
+      // ทางออกสุดท้าย: ยอมให้ตัดบรรทัดในกล่อง ดีกว่าปล่อยให้ล้นออกนอกพื้นสี
+      box.style.whiteSpace = 'normal';
+      box.style.lineHeight = '1.35';
+      box.style.overflowWrap = 'break-word';
     }
+
+    // v4.2: พารากราฟไม่เคยมีตัวกันความสูง ถ้าตัดบรรทัดแล้วยาวเกินก็หลุดขอบล่างเงียบๆ
+    function fitParagraph(box, ratio, bottomLimit) {
+      var size = parseFloat(getComputedStyle(box).fontSize);
+      var guard = 0;
+      while (guard < 80) {
+        var r = box.getBoundingClientRect();
+        if (r.width <= ${W} * ratio + 1 && r.bottom <= bottomLimit) return;
+        if (size <= 26) return;
+        size -= 1; box.style.fontSize = size + 'px'; guard++;
+      }
+    }
+
+    var ratio = ${(parseFloat(pattern.maxWidth) / 100).toFixed(3)};
+    document.querySelectorAll('.bubble').forEach(function (b) {
+      if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(H * 0.92)});
+      else fitBubble(b, ratio);
+    });
   </script>
 </body></html>`;
 }
