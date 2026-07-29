@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.3';
+const BUILD = 'v4.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -235,6 +235,38 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   return { css: `${box} ${base} border-radius:${radius}px;`, extra: '' };
 }
 
+// v4.5: เลือกอีโมจิให้เข้ากับความหมายของพาดหัว
+// ของเดิมใช้เฉพาะอีโมจิที่ WF2 พิมพ์ติดมา ถ้าไม่มีก็ใส่สปาร์กเกิลทุกครั้ง
+// ทำให้ทุกภาพในอัลบั้มได้ตัวเดียวกันหมดทั้งที่พาดหัวคนละเรื่อง
+// เรียงจากเฉพาะเจาะจงไปหากว้าง เจอคำแรกที่ตรงแล้วหยุด
+const EMOJI_MAP = [
+  [/เดี๋ยวนะ|เอ๊ะ|จริงมั้ย|จริงไหม|สงสัย|รู้ยัง|ทำไม|[?]|ฯ/, '🤔'],
+  [/สายตา|ดวงตา|ตาล้า|แสงสีฟ้า|ลูทีน|จอคอม|มองเห็น/, '👀'],
+  [/ปอด|หายใจ|หอบ|ภูมิแพ้|ฝุ่น|PM|มลภาวะ/, '🍃'],
+  [/เส้นผม|ผมร่วง|หนังศีรษะ/, '💇'],
+  [/หุ่น|เอว|พุง|น้ำหนัก|ไขมัน|เผาผลาญ|กระชับ/, '🔥'],
+  [/ลำไส้|ขับถ่าย|ท้องผูก|ไฟเบอร์|ดีท็อกซ์|ตับ/, '🌿'],
+  [/ภูมิคุ้มกัน|ป่วย|ไข้|แข็งแรง|วิตามินซี|วิตซี/, '🛡'],
+  [/นอน|พักผ่อน|เหนื่อย|อ่อนเพลีย|ล้า/, '😴'],
+  [/แดด|ยูวี|UV|กันแดด|ไวต่อแสง/, '☀'],
+  [/ริ้วรอย|ชะลอวัย|อ่อนเยาว์|ตีนกา|แก่/, '⏳'],
+  [/สิว|อักเสบ|รอยแดง/, '🌸'],
+  [/ฝ้า|กระ|จุดด่างดำ|หมองคล้ำ|ดำแดด|กรรมพันธุ์|รอยดำ/, '🌗'],
+  [/ดูดซึม|เทคโนโลยี|ไลโปโซม|งานวิจัย|ทดสอบ|มิลลิกรัม|%/, '🔬'],
+  [/ราคา|บาท|คุ้ม|โปร|แถม|ส่วนลด|ถูก/, '💸'],
+  [/คอลลาเจน|ชุ่มชื้น|เนียน|นุ่ม/, '💧'],
+  [/ขาว|ใส|กระจ่าง|ออร่า|ผิว|กลูต้า|สว่าง/, '✨'],
+];
+const EMOJI_FALLBACK = ['✨', '🌟', '💕', '👏', '💡'];
+
+function emojiForHeadline(headline, seed) {
+  const t = str(headline);
+  for (const [re, ch] of EMOJI_MAP) {
+    if (re.test(t)) return ch;
+  }
+  return EMOJI_FALLBACK[Math.abs(seed) % EMOJI_FALLBACK.length];
+}
+
 function buildHtml(payload) {
   const dt = payload?.design?.designTemplate || {};
   const banner = dt.banner || {};
@@ -368,11 +400,33 @@ function buildHtml(payload) {
     return `<div class="bubble" style="top:${slot.top};${pos}"><span>${esc(t)}</span></div>`;
   }).join('\n');
 
+  // v4.5: ตำแหน่งสติกเกอร์แยกรายเพจ แต่ยึดกับป้ายพาดหัวเสมอ
+  // ลำดับความสำคัญ: ค่าที่กรอกในชีต -> คำนวณจาก Page ID -> มุมซ้ายบน
+  // คำนวณจาก Page ID เป็นแบบตายตัว เพจเดิมจะได้ตำแหน่งเดิมทุกครั้ง
+  // และทั้ง 4 ภาพในชุดเดียวกันจะอยู่ตำแหน่งเดียวกัน ไม่กระโดดไปมา
+  const ANCHORS = ['tl', 'tr', 'bl', 'br', 'top', 'bottom', 'left', 'right'];
+  const TILTS = [-11, -7, -3, 0, 4, 8, 12];
+  const stickerAnchorRaw = str(
+    dt.stickerAnchor ||
+    (dt.bubbleStyle || {})['Sticker Anchor'] ||
+    (dt.bannerStyle || {})['Sticker Anchor'] ||
+    ''
+  ).toLowerCase();
+  const pageKey = str(dt.pageId || dt.designId || '');
+  let hash = 0;
+  for (let i = 0; i < pageKey.length; i += 1) {
+    hash = (hash * 31 + pageKey.charCodeAt(i)) % 100000;
+  }
+  const stickerAnchor = ANCHORS.includes(stickerAnchorRaw)
+    ? stickerAnchorRaw
+    : (pageKey ? ANCHORS[hash % ANCHORS.length] : 'tl');
+  const stickerTilt = pageKey ? TILTS[(hash >> 3) % TILTS.length] : 0;
+
   const showSticker =
     decoration.includes('emoji_prefix') || decoration.includes('sticker') ||
     decoration.includes('sparkle');
   const pool = [...hRaw.emoji, ...stickers].filter(Boolean);
-  const leftChar = pool[0] || '\u2728';
+  const leftChar = pool[0] || emojiForHeadline(headline, hash);
   const rightChar = pool[1] || '';
   const stickerHtml = showSticker
     ? `<div class="sticker sticker-left">${esc(leftChar)}</div>` +
@@ -460,6 +514,36 @@ function buildHtml(payload) {
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
     fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
+
+    // v4.5: เกาะสติกเกอร์เข้ากับป้ายพาดหัว ตำแหน่งแยกรายเพจ
+    // ของเดิมฟิกซ์ไว้ที่มุมภาพ (top:0.8% left:2%) ทุกเพจจึงเหมือนกันหมด
+    // วัดหลังย่อฟอนต์ป้ายเสร็จ จึงได้ขนาดป้ายจริง และ getBoundingClientRect
+    // นับ transform ให้ด้วย ทรงเฉียงกับทรงริบบิ้นจึงเกาะถูกตำแหน่งเหมือนกัน
+    if (bannerBox) {
+      var bb = bannerBox.getBoundingClientRect();
+      var anchor = '${stickerAnchor}';
+      var mirror = { tl: 'tr', tr: 'tl', bl: 'br', br: 'bl',
+                     top: 'top', bottom: 'bottom', left: 'right', right: 'left' };
+      document.querySelectorAll('.sticker').forEach(function (s) {
+        var r = s.getBoundingClientRect();
+        var a = s.classList.contains('sticker-left') ? anchor : (mirror[anchor] || 'tr');
+        var cx = bb.left + bb.width / 2 - r.width / 2;
+        var cy = bb.top + bb.height / 2 - r.height / 2;
+        var x, y;
+        if (a === 'tl')          { x = bb.left - r.width * 0.55;  y = bb.top - r.height * 0.45; }
+        else if (a === 'tr')     { x = bb.right - r.width * 0.45; y = bb.top - r.height * 0.45; }
+        else if (a === 'bl')     { x = bb.left - r.width * 0.50;  y = bb.bottom - r.height * 0.55; }
+        else if (a === 'br')     { x = bb.right - r.width * 0.50; y = bb.bottom - r.height * 0.55; }
+        else if (a === 'top')    { x = cx;                        y = bb.top - r.height * 0.78; }
+        else if (a === 'bottom') { x = cx;                        y = bb.bottom - r.height * 0.22; }
+        else if (a === 'left')   { x = bb.left - r.width * 0.78;  y = cy; }
+        else                     { x = bb.right - r.width * 0.22; y = cy; }
+        s.style.left = Math.min(${W} - r.width - 6, Math.max(6, x)) + 'px';
+        s.style.top = Math.min(${H} - r.height - 6, Math.max(6, y)) + 'px';
+        s.style.right = 'auto';
+        s.style.transform = 'rotate(' + (s.classList.contains('sticker-left') ? ${stickerTilt} : ${-stickerTilt}) + 'deg)';
+      });
+    }
 
     // v4.2: กันตัวหนังสือทะลุกล่อง
     // ของเดิมเทียบตัวหนังสือกับความกว้างกล่องเต็ม (ซึ่งรวม padding อยู่แล้ว)
