@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.7';
+const BUILD = 'v5.8';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -273,6 +273,21 @@ const EMOJI_MAP = [
 ];
 const EMOJI_FALLBACK = ['✨', '🌟', '💕', '👏', '💡'];
 
+// v5.8: คลังสติกเกอร์แยกตามโทน ตามสเปกที่เจ้าของกำหนด
+//   สุภาพ = เรียบทางการ · กลาง = เครื่องหมายยืนยัน · แซ่บ = ปั่นให้เข้าสถานการณ์
+const STICKER_POOL = {
+  TONE01: ['\u2728', '\ud83c\udf3f', '\ud83d\udca7', '\ud83c\udf38', '\ud83c\udf3c'],
+  TONE02: ['\u2705', '\ud83d\udfe2', '\ud83d\udccc', '\ud83d\udca1', '\u2b50'],
+  TONE03: ['\ud83d\udd25', '\ud83d\udca5', '\ud83d\ude31', '\ud83e\udd2f', '\ud83d\udc96', '\u2728', '\ud83d\ude0e'],
+};
+// จำนวนสติกเกอร์ต่อภาพ และจุดเกาะที่เข้ากับแต่ละโทน
+//   สุภาพ วางข้างพาดหัว 1 อัน · กลาง มุมป้าย 2 อัน · แซ่บ กระจาย 3 อัน
+const STICKER_PLAN = {
+  TONE01: { count: 1, anchors: ['left', 'right'] },
+  TONE02: { count: 2, anchors: ['tl', 'tr', 'bl', 'br'] },
+  TONE03: { count: 3, anchors: ['tl', 'tr', 'bl', 'br', 'top', 'left', 'right'] },
+};
+
 function emojiForHeadline(headline, seed) {
   const t = str(headline);
   for (const [re, ch] of EMOJI_MAP) {
@@ -441,10 +456,26 @@ function buildHtml(payload) {
   const headlineWeight = num(typo.headlineWeight, 800);
 
   const slotOrder = orderSlots(pattern.slots, rd.emptySpaceHint);
+  // v5.8: โทนมาจากคอลัมน์ Tone Scope ที่เพิ่มไว้ในชีต 19/20
+  //   ต้องประกาศก่อนสร้างกล่องข้อความ เพราะติ๊กถูกใช้ค่านี้ด้วย
+  const toneRaw = str((dt.bubbleStyle || {})['Tone Scope'] || (dt.bannerStyle || {})['Tone Scope'], '').toUpperCase();
+  const toneKey = ['TONE01', 'TONE02', 'TONE03'].includes(toneRaw) ? toneRaw : 'TONE02';
+
+  // v5.8: โทนกลางให้ติ๊กถูกหน้าก้อนที่เป็นสรรพคุณ ตามที่เจ้าของขอ
+  //   ใช้เฉพาะแบบหลายก้อน พารากราฟไม่ใส่เพราะเป็นการเล่าเรื่อง
+  const tickTone = toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1;
+  const looksLikeBenefit = (t) => {
+    const x = str(t);
+    if (!x || x.length < 6) return false;
+    if (/[?？]$/.test(x)) return false;
+    if (/^(ทำไม|ยังไง|อย่างไร|ไหม|มั้ย|สงสัย)/.test(x)) return false;
+    return true;
+  };
   const bubbleHtml = blocks.map((t, i) => {
     const slot = slotOrder[i];
     const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
-    return `<div class="bubble" style="top:${slot.top};${pos}"><span>${esc(t)}</span></div>`;
+    const label = tickTone && looksLikeBenefit(t) ? '\u2705 ' + t : t;
+    return `<div class="bubble" style="top:${slot.top};${pos}"><span>${esc(label)}</span></div>`;
   }).join('\n');
 
   // v4.5: ตำแหน่งสติกเกอร์แยกรายเพจ แต่ยึดกับป้ายพาดหัวเสมอ
@@ -464,20 +495,28 @@ function buildHtml(payload) {
   for (let i = 0; i < pageKey.length; i += 1) {
     hash = (hash * 31 + pageKey.charCodeAt(i)) % 100000;
   }
+  const plan = STICKER_PLAN[toneKey];
   const stickerAnchor = ANCHORS.includes(stickerAnchorRaw)
     ? stickerAnchorRaw
-    : (pageKey ? ANCHORS[hash % ANCHORS.length] : 'tl');
+    : plan.anchors[hash % plan.anchors.length];
   const stickerTilt = pageKey ? TILTS[(hash >> 3) % TILTS.length] : 0;
 
   const showSticker =
     decoration.includes('emoji_prefix') || decoration.includes('sticker') ||
     decoration.includes('sparkle');
-  const pool = [...hRaw.emoji, ...stickers].filter(Boolean);
-  const leftChar = pool[0] || emojiForHeadline(headline, hash);
-  const rightChar = pool[1] || '';
+  // v5.8: เติมจากคลังของโทนให้ครบจำนวน ไม่ปล่อยให้เหลืออันเดียวเหมือนเดิม
+  const tonePool = STICKER_POOL[toneKey];
+  const picked = [...hRaw.emoji, ...stickers].filter(Boolean);
+  for (let i = 0; picked.length < plan.count && i < tonePool.length; i += 1) {
+    // ก้าวทีละ 1 เท่านั้น เคยใช้ i*7 แล้วชนกับขนาดคลัง 7 ตัว เลยวนกลับที่เดิม
+    const cand = tonePool[(hash + i) % tonePool.length];
+    if (!picked.includes(cand)) picked.push(cand);
+  }
+  if (!picked.length) picked.push(emojiForHeadline(headline, hash));
+  const chosen = picked.slice(0, plan.count);
+  const CLASSES = ['sticker-left', 'sticker-right', 'sticker-third'];
   const stickerHtml = showSticker
-    ? `<div class="sticker sticker-left">${esc(leftChar)}</div>` +
-      (rightChar ? `<div class="sticker sticker-right">${esc(rightChar)}</div>` : '')
+    ? chosen.map((c, i) => `<div class="sticker ${CLASSES[i] || 'sticker-third'}">${esc(c)}</div>`).join('')
     : '';
 
   return `<!doctype html>
@@ -519,6 +558,7 @@ function buildHtml(payload) {
   }
   .sticker-left  { top:0.8%; left:2%; }
   .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
+  .sticker-third { top:4%; left:8%; transform:rotate(-6deg); }
   .bubble > span { display:inline-block; }
   .bubble {
     position:absolute;
@@ -573,7 +613,9 @@ function buildHtml(payload) {
                      top: 'top', bottom: 'bottom', left: 'right', right: 'left' };
       document.querySelectorAll('.sticker').forEach(function (s) {
         var r = s.getBoundingClientRect();
-        var a = s.classList.contains('sticker-left') ? anchor : (mirror[anchor] || 'tr');
+        var a = s.classList.contains('sticker-left') ? anchor
+              : s.classList.contains('sticker-third') ? 'bottom'
+              : (mirror[anchor] || 'tr');
         var cx = bb.left + bb.width / 2 - r.width / 2;
         var cy = bb.top + bb.height / 2 - r.height / 2;
         var x, y;
