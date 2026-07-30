@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.5';
+const BUILD = 'v5.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -290,7 +290,7 @@ function buildHtml(payload) {
   const accentKey = str(banner.defaultAccentKey, 'urgency');
   // v5.3: ชีต 20 กำหนดคู่สีเองได้ ถ้าเว้นว่างจึงถอยไปใช้พาเลตต์ของธีม
   // ทำให้ล็อกคู่สีตามโทนได้ เช่น ตัวเหลืองบนพื้นดำ ที่ readableOn คิดเองไม่ได้
-  const bannerSheet = design?.designTemplate?.bannerStyle || {};
+  const bannerSheet = dt.bannerStyle || {};
   const sheetBg = str(bannerSheet['Background Color'], '');
   const sheetFg = str(bannerSheet['Text Color'], '');
   const accent = sheetBg || str(palette[accentKey], str(palette.urgency, '#D9622B'));
