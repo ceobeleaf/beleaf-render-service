@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.9';
+const BUILD = 'v6.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -260,12 +260,12 @@ const EMOJI_MAP = [
   [/เส้นผม|ผมร่วง|หนังศีรษะ/, '💇'],
   [/หุ่น|เอว|พุง|น้ำหนัก|ไขมัน|เผาผลาญ|กระชับ/, '🔥'],
   [/ลำไส้|ขับถ่าย|ท้องผูก|ไฟเบอร์|ดีท็อกซ์|ตับ/, '🌿'],
-  [/ภูมิคุ้มกัน|ป่วย|ไข้|แข็งแรง|วิตามินซี|วิตซี/, '🛡'],
-  [/นอน|พักผ่อน|เหนื่อย|อ่อนเพลีย|ล้า/, '😴'],
+  [/นอนดึก|นอนไม่|พักผ่อน|เหนื่อย|อ่อนเพลีย/, '😴'],
   [/แดด|ยูวี|UV|กันแดด|ไวต่อแสง/, '☀'],
   [/ริ้วรอย|ชะลอวัย|อ่อนเยาว์|ตีนกา|แก่/, '⏳'],
   [/สิว|อักเสบ|รอยแดง/, '🌸'],
   [/ฝ้า|กระ|จุดด่างดำ|หมองคล้ำ|ดำแดด|กรรมพันธุ์|รอยดำ/, '🌗'],
+  [/ภูมิคุ้มกัน|ป่วย|ไข้|แข็งแรง/, '🛡'],
   [/ดูดซึม|เทคโนโลยี|ไลโปโซม|งานวิจัย|ทดสอบ|มิลลิกรัม|%/, '🔬'],
   [/ราคา|บาท|คุ้ม|โปร|แถม|ส่วนลด|ถูก/, '💸'],
   [/คอลลาเจน|ชุ่มชื้น|เนียน|นุ่ม/, '💧'],
@@ -282,10 +282,12 @@ const STICKER_POOL = {
 };
 // จำนวนสติกเกอร์ต่อภาพ และจุดเกาะที่เข้ากับแต่ละโทน
 //   สุภาพ วางข้างพาดหัว 1 อัน · กลาง มุมป้าย 2 อัน · แซ่บ กระจาย 3 อัน
+// v6.0: กลับมาใช้สติกเกอร์อันเดียวทุกโทน หลายอันแล้วดูซ้ำและรก
+//   สิ่งที่ต่างกันตามโทนคือจุดเกาะ ไม่ใช่จำนวน
 const STICKER_PLAN = {
   TONE01: { count: 1, anchors: ['left', 'right'] },
-  TONE02: { count: 2, anchors: ['tl', 'tr', 'bl', 'br'] },
-  TONE03: { count: 3, anchors: ['tl', 'tr', 'bl', 'br', 'top', 'left', 'right'] },
+  TONE02: { count: 1, anchors: ['tl', 'tr', 'bl', 'br'] },
+  TONE03: { count: 1, anchors: ['tl', 'tr', 'top', 'left', 'right'] },
 };
 
 function emojiForHeadline(headline, seed) {
@@ -505,16 +507,18 @@ function buildHtml(payload) {
   //   ของเดิมเปิดเฉพาะค่าตกแต่ง emoji_prefix/sticker/sparkle
   //   ทำให้เพจที่ตั้งเป็น Line หรือ Arrow ไม่มีสติกเกอร์เลยสักอัน
   const showSticker = true;
-  // v5.8: เติมจากคลังของโทนให้ครบจำนวน ไม่ปล่อยให้เหลืออันเดียวเหมือนเดิม
+  // v6.0: ลำดับการเลือกสติกเกอร์ ให้ตรงเนื้อหาเป็นหลัก
+  //   1) อีโมจิที่อยู่ในเนื้อหาอยู่แล้ว = เจตนาของคนเขียน
+  //   2) จับคำจากพาดหัวและข้อความบนภาพ ผ่าน EMOJI_MAP
+  //   3) คลังตามโทน ใช้เมื่อไม่มีคำไหนตรงเลย
   const tonePool = STICKER_POOL[toneKey];
-  const picked = [...hRaw.emoji, ...stickers].filter(Boolean);
-  for (let i = 0; picked.length < plan.count && i < tonePool.length; i += 1) {
-    // ก้าวทีละ 1 เท่านั้น เคยใช้ i*7 แล้วชนกับขนาดคลัง 7 ตัว เลยวนกลับที่เดิม
-    const cand = tonePool[(hash + i) % tonePool.length];
-    if (!picked.includes(cand)) picked.push(cand);
-  }
-  if (!picked.length) picked.push(emojiForHeadline(headline, hash));
-  const chosen = picked.slice(0, plan.count);
+  const fromContent = [...hRaw.emoji, ...stickers].filter(Boolean);
+  const matchText = [headline, ...blocks].join(' ');
+  const byKeyword = EMOJI_MAP.find(([re]) => re.test(matchText));
+  const chosen = [
+    fromContent[0] ||
+    (byKeyword ? byKeyword[1] : tonePool[hash % tonePool.length])
+  ];
   const CLASSES = ['sticker-left', 'sticker-right', 'sticker-third'];
   const stickerHtml = showSticker
     ? chosen.map((c, i) => `<div class="sticker ${CLASSES[i] || 'sticker-third'}">${esc(c)}</div>`).join('')
