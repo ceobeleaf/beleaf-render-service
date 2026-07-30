@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.1';
+const BUILD = 'v5.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -227,7 +227,8 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   }
   if (/skew|diagonal/.test(s)) {
     return {
-      css: `${inset} ${base} border-radius:0; transform:skewX(-9deg);`,
+      // v5.2: ต้องคง translateX(-50%) ไว้ด้วย ไม่งั้นทรงเอียงจะเขียนทับการจัดกึ่งกลาง ป้ายจะเลื่อนไปทางขวา
+      css: `${inset} ${base} border-radius:0; transform:translateX(-50%) skewX(-9deg);`,
       extra: 'transform:skewX(9deg); display:inline-block;',
     };
   }
