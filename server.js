@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.0';
+const BUILD = 'v5.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -369,7 +369,8 @@ function buildHtml(payload) {
   const paraLineCount = pattern.kind === 'paragraph' ? Math.max(1, rawBlocks.length) : 0;
   // v5.0: พารากราฟก็ฟังค่า Font Scale ด้วย เดิมใช้เฉพาะแบบหลายก้อน
   // ใช้กับโพสต์ภาพเดียวที่ข้อความยาวกว่าปกติ WF2 จะส่ง fontScale = small มาให้
-  const paraScale = scaleKey === 'small' ? 0.80 : scaleKey === 'large' ? 1.12 : 1;
+  // v5.1: ย่อพารากราฟลงอีก 12% ทุกกรณี ตามตัวอย่างที่เจ้าของส่งมา
+  const paraScale = (scaleKey === 'small' ? 0.80 : scaleKey === 'large' ? 1.12 : 1) * 0.88;
   const fontRatio = pattern.kind === 'paragraph'
     ? paragraphFont(paraLineCount) * paraScale
     : num(pattern.font, sc.bubble);
@@ -495,7 +496,7 @@ function buildHtml(payload) {
     font-weight:700;
     font-size:${bubbleFontPx}px;
     line-height:1.28;
-    padding:0.52em 0.9em;
+    padding:${isParagraphLayout ? '0.40em 0.60em' : '0.52em 0.9em'};
     border-radius:${bubbleRadius}px;
     box-shadow:${isTransparent ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
