@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.2';
+const BUILD = 'v5.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -205,8 +205,7 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
     return {
       css: `max-width:88%; padding:0.10em 0;
             background:transparent; color:#FFFFFF;
-            border-bottom:0.16em solid ${accent}; box-shadow:none;
-            text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.8);`,
+            border-bottom:0.16em solid ${accent}; box-shadow:none;`,
       extra: '',
     };
   }
@@ -289,8 +288,13 @@ function buildHtml(payload) {
 
   const palette = banner.palette || {};
   const accentKey = str(banner.defaultAccentKey, 'urgency');
-  const accent = str(palette[accentKey], str(palette.urgency, '#D9622B'));
-  const headlineColor = readableOn(accent);
+  // v5.3: ชีต 20 กำหนดคู่สีเองได้ ถ้าเว้นว่างจึงถอยไปใช้พาเลตต์ของธีม
+  // ทำให้ล็อกคู่สีตามโทนได้ เช่น ตัวเหลืองบนพื้นดำ ที่ readableOn คิดเองไม่ได้
+  const bannerSheet = design?.designTemplate?.bannerStyle || {};
+  const sheetBg = str(bannerSheet['Background Color'], '');
+  const sheetFg = str(bannerSheet['Text Color'], '');
+  const accent = sheetBg || str(palette[accentKey], str(palette.urgency, '#D9622B'));
+  const headlineColor = sheetFg || readableOn(accent);
 
   const bannerShapeRaw = str(banner.shape, '');
   const bannerModeRaw = str(rd.bannerMode, '');
@@ -397,9 +401,9 @@ function buildHtml(payload) {
   const bubbleShape = str(bubble.shape, 'rounded-rect').toLowerCase();
   const bubbleRadius = /pill/.test(bubbleShape) ? 999 : 22;
   const bubbleShadow = shadowOf(bubble.shadow, 'soft');
-  // พื้นโปร่งใสต้องมีเงาตัวอักษรไม่งั้นอ่านไม่ออกบนภาพถ่าย
-  const bubbleTextShadow = (isTransparent || /rgba\([^)]*0?\.[0-7]\d*\)/.test(bubbleBgRaw))
-    ? 'text-shadow:0 2px 8px rgba(0,0,0,.45);' : '';
+  // v5.3: เจ้าของสั่งห้ามมีเงาตัวหนังสือทุกตำแหน่ง เพราะอ่านยาก
+  // ความอ่านออกบนพื้นโปร่งให้แก้ด้วยการเลือกคู่สีที่ตัดกันแทน
+  const bubbleTextShadow = '';
   const backdrop = /rgba\(/i.test(bubbleBgRaw) ? 'backdrop-filter:blur(6px);' : '';
 
   const fontHeadline = fontFamily(typo.fontHeadline, 'Anuphan');
