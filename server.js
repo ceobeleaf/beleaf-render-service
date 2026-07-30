@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.6';
+const BUILD = 'v5.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -71,6 +71,19 @@ function readableOn(color) {
   });
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return lum > 0.45 ? '#141414' : '#FFFFFF';
+}
+
+// v5.7: วัดความสว่างของสี ใช้ตัดสินว่าเป็นพื้นเข้มหรือพื้นอ่อน
+// เกณฑ์ 0.45 ใช้ค่าเดียวกับ readableOn จะได้ไม่ขัดกันเอง
+function isDarkColor(color) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(str(color));
+  if (!m) return null; // ไม่ใช่ hex ล้วน เช่น gradient หรือ transparent
+  const int = parseInt(m[1], 16);
+  const [r, g, b] = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map((c) => {
+    const t = c / 255;
+    return t <= 0.03928 ? t / 12.92 : Math.pow((t + 0.055) / 1.055, 2.4);
+  });
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) <= 0.45;
 }
 
 const EMOJI_RE =
@@ -375,7 +388,8 @@ function buildHtml(payload) {
   // v5.0: พารากราฟก็ฟังค่า Font Scale ด้วย เดิมใช้เฉพาะแบบหลายก้อน
   // ใช้กับโพสต์ภาพเดียวที่ข้อความยาวกว่าปกติ WF2 จะส่ง fontScale = small มาให้
   // v5.1: ย่อพารากราฟลงอีก 12% ทุกกรณี ตามตัวอย่างที่เจ้าของส่งมา
-  const paraScale = (scaleKey === 'small' ? 0.80 : scaleKey === 'large' ? 1.12 : 1) * 0.88;
+  // v5.7: เจ้าของขอย่อพารากราฟลงอีก 20% จากเดิมที่ย่อไว้ 12% แล้ว
+  const paraScale = (scaleKey === 'small' ? 0.80 : scaleKey === 'large' ? 1.12 : 1) * 0.88 * 0.80;
   const fontRatio = pattern.kind === 'paragraph'
     ? paragraphFont(paraLineCount) * paraScale
     : num(pattern.font, sc.bubble);
@@ -392,10 +406,26 @@ function buildHtml(payload) {
     : rawBlocks.slice(0, maxBlocks);
 
   // ---- กล่องข้อความ: รองรับ rgba / gradient / transparent / เส้นขอบ / ทรง pill ----
-  const bubbleBgRaw = str(bubble.background, '#FFFFFF');
+  let bubbleBgRaw = str(bubble.background, '#FFFFFF');
   const isGradient = /gradient\(/i.test(bubbleBgRaw);
   const isTransparent = /^transparent$/i.test(bubbleBgRaw);
-  const bubbleFg = str(bubble.textColor, '#1B1B1B');
+  let bubbleFg = str(bubble.textColor, '#1B1B1B');
+
+  // v5.7: พาดหัวกับกล่องข้อความต้องสลับขั้วสีกันเสมอ
+  // พาดหัวตัวเข้มพื้นอ่อน -> กล่องต้องตัวอ่อนพื้นเข้ม และกลับกัน
+  // ถ้าซ้ำขั้ว ให้สลับสีพื้นกับสีตัวอักษรของกล่อง จะได้คงโทนสีเดิมไว้
+  const bannerDark = isDarkColor(accent);
+  const bubbleDark = isDarkColor(bubbleBgRaw);
+  let polaritySwapped = false;
+  if (bannerDark !== null && bubbleDark !== null && bannerDark === bubbleDark) {
+    const swapTo = isDarkColor(bubbleFg);
+    if (swapTo !== null && swapTo !== bubbleDark) {
+      const tmp = bubbleBgRaw;
+      bubbleBgRaw = bubbleFg;
+      bubbleFg = tmp;
+      polaritySwapped = true;
+    }
+  }
   const bubbleBorder = str(bubble.border, 'none');
   const hasBorder = bubbleBorder && bubbleBorder.toLowerCase() !== 'none';
   const bubbleShape = str(bubble.shape, 'rounded-rect').toLowerCase();
