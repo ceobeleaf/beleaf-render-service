@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.8';
+const BUILD = 'v4.9';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -346,8 +346,15 @@ function buildHtml(payload) {
     num(rd.textBlockCountMax, 0) === 1 ||
     (str(rd.bubbleMode) === '' && str(rd.structureType).includes('paragraph'));
 
+  // v4.9: ผังพารากราฟยึดจาก layout ของเพจก่อน ไม่ใช่จากชีต 19
+  // เหตุผล: ชีต 19 ผูกกับรหัส Bubble Style ซึ่งหลายเพจใช้ร่วมกัน
+  // เช่น P001 กับ P014 ใช้ B010 เหมือนกัน ตั้งที่ชีต 19 จะกระทบทั้งคู่
+  // ส่วน paragraphPosition มาจากชีต 66 ซึ่งผูกกับ layout รายเพจโดยตรง
+  const posMap = { left: 'para-left', right: 'para-right', bottom: 'para-bottom' };
+  const layoutPara = posMap[str(rd.paragraphPosition).toLowerCase()] || '';
+
   const requested = useParagraph
-    ? str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN)
+    ? (layoutPara || str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN))
     : str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN);
 
   // กันไว้อีกชั้น เผื่อชีตกรอกผิดตระกูล
