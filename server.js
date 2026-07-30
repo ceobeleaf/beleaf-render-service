@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v5.8';
+const BUILD = 'v5.9';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -501,9 +501,10 @@ function buildHtml(payload) {
     : plan.anchors[hash % plan.anchors.length];
   const stickerTilt = pageKey ? TILTS[(hash >> 3) % TILTS.length] : 0;
 
-  const showSticker =
-    decoration.includes('emoji_prefix') || decoration.includes('sticker') ||
-    decoration.includes('sparkle');
+  // v5.9: สเปกใหม่ให้ทุกโทนมีสติกเกอร์ จำนวนและตำแหน่งคุมด้วยโทนแทน
+  //   ของเดิมเปิดเฉพาะค่าตกแต่ง emoji_prefix/sticker/sparkle
+  //   ทำให้เพจที่ตั้งเป็น Line หรือ Arrow ไม่มีสติกเกอร์เลยสักอัน
+  const showSticker = true;
   // v5.8: เติมจากคลังของโทนให้ครบจำนวน ไม่ปล่อยให้เหลืออันเดียวเหมือนเดิม
   const tonePool = STICKER_POOL[toneKey];
   const picked = [...hRaw.emoji, ...stickers].filter(Boolean);
