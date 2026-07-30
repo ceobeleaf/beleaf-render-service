@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v4.9';
+const BUILD = 'v5.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -367,8 +367,11 @@ function buildHtml(payload) {
   const isParagraphLayout = pattern.kind === 'paragraph';
   // v4.1: ขนาดตัวอักษรในกล่องมาจากผัง ถ้าเน้นสินค้าค่อยหรี่ลงอีก 8%
   const paraLineCount = pattern.kind === 'paragraph' ? Math.max(1, rawBlocks.length) : 0;
+  // v5.0: พารากราฟก็ฟังค่า Font Scale ด้วย เดิมใช้เฉพาะแบบหลายก้อน
+  // ใช้กับโพสต์ภาพเดียวที่ข้อความยาวกว่าปกติ WF2 จะส่ง fontScale = small มาให้
+  const paraScale = scaleKey === 'small' ? 0.80 : scaleKey === 'large' ? 1.12 : 1;
   const fontRatio = pattern.kind === 'paragraph'
-    ? paragraphFont(paraLineCount)
+    ? paragraphFont(paraLineCount) * paraScale
     : num(pattern.font, sc.bubble);
   const bubbleFontPx = Math.round(H * fontRatio * (emphasiseProduct ? 0.92 : 1));
 
