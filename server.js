@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.1';
+const BUILD = 'v6.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -465,7 +465,16 @@ function buildHtml(payload) {
 
   // v5.8: โทนกลางให้ติ๊กถูกหน้าก้อนที่เป็นสรรพคุณ ตามที่เจ้าของขอ
   //   ใช้เฉพาะแบบหลายก้อน พารากราฟไม่ใส่เพราะเป็นการเล่าเรื่อง
-  const tickTone = toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1;
+  // v6.2: ใช้บทบาทของภาพเป็นตัวตัดสิน ไม่ใช่จับคำในแต่ละก้อน
+  //   ของเดิมจับคำแล้วพัง เพราะ "แต่งหน้าก็ไม่ช่วย" มีคำว่า ช่วย จึงได้ติ๊กถูกทั้งที่เป็นประโยคลบ
+  //   บทบาทมาจาก renderDirectives.panelRole ซึ่ง WF2 ส่งมาให้อยู่แล้ว
+  const panelRole = str(rd.panelRole).toLowerCase();
+  const NEGATIVE_ROLES = ['hook', 'problem', 'overview', 'story'];
+  const POSITIVE_ROLES = ['benefit', 'proof', 'product_role', 'explanation', 'usage', 'summary', 'decision'];
+  const roleMark = NEGATIVE_ROLES.includes(panelRole) ? '\u2757 '
+    : POSITIVE_ROLES.includes(panelRole) ? '\u2705 '
+    : '';
+  const tickTone = toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1 && Boolean(roleMark);
   // v6.1: แยกสามสถานะ บวก ลบ กลางๆ
   //   บวก  = พูดถึงผลลัพธ์ที่ดีขึ้นหรือคุณสมบัติของสินค้า  ใช้ติ๊กถูก
   //   ลบ   = พูดถึงปัญหาที่ยังไม่ได้แก้                     ใช้เครื่องหมายตกใจ
@@ -487,7 +496,7 @@ function buildHtml(payload) {
     // v6.1: ถ้าผังบอกระยะจากขอบล่าง ให้เกาะขอบล่างจริง จะได้ชิดขอบเหมือนพาดหัวชิดขอบบน
     const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
     const anchorClass = slot.bottom ? ' bubble-bottom' : '';
-    const label = tickTone ? tickPrefix(t) + t : t;
+    const label = tickTone ? roleMark + t : t;
     return `<div class="bubble${anchorClass}" style="${vert}${pos}"><span>${esc(label)}</span></div>`;
   }).join('\n');
 
