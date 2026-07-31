@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.0';
+const BUILD = 'v6.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -166,7 +166,7 @@ const PATTERNS = {
   // v4.2: วัดจากภาพอ้างอิงจริง — กล่องพารากราฟกว้าง 49-50% เริ่มที่ 30-31% ไม่ใช่ 46%/36%
   'para-left':   { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', left: '4%' }] },
   'para-right':  { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', right: '3%' }] },
-  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ top: '58%', left: '6%' }] },
+  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ bottom: '4%', left: '6%' }] },
 };
 
 // v4.2: ฟอนต์พารากราฟแปรตามจำนวนบรรทัด — วัดได้ 5 บรรทัด 53px / 7 บรรทัด 43px
@@ -466,18 +466,29 @@ function buildHtml(payload) {
   // v5.8: โทนกลางให้ติ๊กถูกหน้าก้อนที่เป็นสรรพคุณ ตามที่เจ้าของขอ
   //   ใช้เฉพาะแบบหลายก้อน พารากราฟไม่ใส่เพราะเป็นการเล่าเรื่อง
   const tickTone = toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1;
-  const looksLikeBenefit = (t) => {
+  // v6.1: แยกสามสถานะ บวก ลบ กลางๆ
+  //   บวก  = พูดถึงผลลัพธ์ที่ดีขึ้นหรือคุณสมบัติของสินค้า  ใช้ติ๊กถูก
+  //   ลบ   = พูดถึงปัญหาที่ยังไม่ได้แก้                     ใช้เครื่องหมายตกใจ
+  //   กลาง = ตัดสินไม่ได้                                   ไม่ใส่อะไรเลย ปลอดภัยกว่าใส่ผิด
+  const BETTER = /(ลดลง|จางลง|ดีขึ้น|ขึ้น|ช่วย|เห็นผล|กระจ่าง|เนียน|สม่ำเสมอ|ชุ่มชื้น|ยืดหยุ่น|ฟื้นฟู|บำรุง|ปกป้อง|ครบ|ได้|ไม่ต้อง|%|มก\.|ชนิด|เท่า)/;
+  const WORSE = /(หมอง|คล้ำ|ด่างดำ|รอยดำ|สิว|ริ้วรอย|แห้ง|โทรม|ล้า|ลืม|ไหม้|ดำ|กังวล|ไม่มั่นใจ|ปัญหา|สะสม)/;
+  const tickPrefix = (t) => {
     const x = str(t);
-    if (!x || x.length < 6) return false;
-    if (/[?？]$/.test(x)) return false;
-    if (/^(ทำไม|ยังไง|อย่างไร|ไหม|มั้ย|สงสัย)/.test(x)) return false;
-    return true;
+    if (!x || x.length < 6) return '';
+    if (/[?？]$/.test(x)) return '';
+    if (/^(ทำไม|ยังไง|อย่างไร|ไหม|มั้ย|สงสัย)/.test(x)) return '';
+    if (BETTER.test(x)) return '\u2705 ';
+    if (WORSE.test(x)) return '\u2757 ';
+    return '';
   };
   const bubbleHtml = blocks.map((t, i) => {
     const slot = slotOrder[i];
     const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
-    const label = tickTone && looksLikeBenefit(t) ? '\u2705 ' + t : t;
-    return `<div class="bubble" style="top:${slot.top};${pos}"><span>${esc(label)}</span></div>`;
+    // v6.1: ถ้าผังบอกระยะจากขอบล่าง ให้เกาะขอบล่างจริง จะได้ชิดขอบเหมือนพาดหัวชิดขอบบน
+    const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
+    const anchorClass = slot.bottom ? ' bubble-bottom' : '';
+    const label = tickTone ? tickPrefix(t) + t : t;
+    return `<div class="bubble${anchorClass}" style="${vert}${pos}"><span>${esc(label)}</span></div>`;
   }).join('\n');
 
   // v4.5: ตำแหน่งสติกเกอร์แยกรายเพจ แต่ยึดกับป้ายพาดหัวเสมอ
@@ -564,6 +575,7 @@ function buildHtml(payload) {
   .sticker-left  { top:0.8%; left:2%; }
   .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
   .sticker-third { top:4%; left:8%; transform:rotate(-6deg); }
+  .bubble-bottom { top:auto; }
   .bubble > span { display:inline-block; }
   .bubble {
     position:absolute;
@@ -686,7 +698,8 @@ function buildHtml(payload) {
     // ตัวจัดลำดับช่องอาจหยิบช่องสูงนั้นมาใช้ กล่องแรกจึงไปทับป้าย
     // แก้ด้วยการเลื่อนทั้งชุดลงเท่ากัน เพื่อรักษาระยะห่างของผังเดิมไว้
     // ถ้าเลื่อนแล้วกล่องล่างสุดจะตกขอบ จะเลื่อนเท่าที่พื้นที่เหลือเท่านั้น
-    var bubbles = Array.prototype.slice.call(document.querySelectorAll('.bubble'));
+    var bubbles = Array.prototype.slice.call(document.querySelectorAll('.bubble'))
+      .filter(function (b) { return !b.classList.contains('bubble-bottom'); });
     if (bannerBox && bubbles.length) {
       var safeTop = bannerBox.getBoundingClientRect().bottom + ${Math.round(H * 0.025)};
       var rects = bubbles.map(function (b) { return b.getBoundingClientRect(); });
