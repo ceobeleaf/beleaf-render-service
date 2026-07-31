@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.2';
+const BUILD = 'v6.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -474,7 +474,12 @@ function buildHtml(payload) {
   const roleMark = NEGATIVE_ROLES.includes(panelRole) ? '\u2757 '
     : POSITIVE_ROLES.includes(panelRole) ? '\u2705 '
     : '';
-  const tickTone = toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1 && Boolean(roleMark);
+  // v6.3: ปิดติ๊กถูก/ตกใจตามคำสั่งเจ้าของ กลับไปหน้าตากล่องข้อความแบบ v5.7
+  //   ยังไม่เคยพิสูจน์ว่าติ๊กช่วยจริง จึงปิดไว้ก่อน ไม่ลบโค้ดทิ้ง
+  //   เปิดกลับได้ทันที เปลี่ยน ENABLE_ROLE_TICK เป็น true
+  //   ส่วนสติกเกอร์ v6.0 และย่อหน้าล่างเกาะขอบ v6.1 ยังอยู่ครบ
+  const ENABLE_ROLE_TICK = false;
+  const tickTone = ENABLE_ROLE_TICK && toneKey === 'TONE02' && !isParagraphLayout && blocks.length > 1 && Boolean(roleMark);
   // v6.1: แยกสามสถานะ บวก ลบ กลางๆ
   //   บวก  = พูดถึงผลลัพธ์ที่ดีขึ้นหรือคุณสมบัติของสินค้า  ใช้ติ๊กถูก
   //   ลบ   = พูดถึงปัญหาที่ยังไม่ได้แก้                     ใช้เครื่องหมายตกใจ
