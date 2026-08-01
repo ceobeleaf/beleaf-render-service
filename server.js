@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.3';
+const BUILD = 'v6.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -388,9 +388,13 @@ function buildHtml(payload) {
   const posMap = { left: 'para-left', right: 'para-right', bottom: 'para-bottom' };
   const layoutPara = posMap[str(rd.paragraphPosition).toLowerCase()] || '';
 
+  // v6.4: ผังกล่องก็ยึดจาก layout ของเพจก่อน เหมือนผังพารากราฟ
+  //   ชีต 66 ช่อง Slot Pattern ผูกกับ layout รายเพจโดยตรง
+  //   ชีต 19 ผูกกับรหัสบับเบิล ซึ่งหลายเพจใช้ร่วมกัน ตั้งที่นั่นจะกระทบเพจอื่น
+  const layoutSlot = str(rd.slotPattern);
   const requested = useParagraph
     ? (layoutPara || str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN))
-    : str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN);
+    : (layoutSlot || str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN));
 
   // กันไว้อีกชั้น เผื่อชีตกรอกผิดตระกูล
   let patternKey = requested.toLowerCase();
