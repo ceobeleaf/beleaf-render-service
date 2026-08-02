@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.4';
+const BUILD = 'v6.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -182,6 +182,11 @@ function paragraphFont(lines) {
 }
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
+
+// v6.5: ผังเหล่านี้ลำดับช่องคือรูปทรงที่ออกแบบไว้ ห้ามให้ emptySpaceHint สลับ
+const FIXED_ORDER_PATTERNS = new Set([
+  'right-stack', 'left-stack', 'four-corners', 'bottom-arc', 'top-arc',
+]);
 
 // AI Vision บอกมาตั้งแต่ WF1 ว่าที่ว่างอยู่ตรงไหน เอามาเรียงลำดับช่องวางกล่อง
 function orderSlots(slots, hint) {
@@ -461,7 +466,10 @@ function buildHtml(payload) {
   const fontBody = fontFamily(typo.fontBody, 'IBM Plex Sans Thai');
   const headlineWeight = num(typo.headlineWeight, 800);
 
-  const slotOrder = orderSlots(pattern.slots, rd.emptySpaceHint);
+  // v6.5: ผังรูปทรงตายตัวใช้ลำดับตามที่ออกแบบ ไม่เอา hint มาสลับ
+  const slotOrder = FIXED_ORDER_PATTERNS.has(patternKey)
+    ? pattern.slots
+    : orderSlots(pattern.slots, rd.emptySpaceHint);
   // v5.8: โทนมาจากคอลัมน์ Tone Scope ที่เพิ่มไว้ในชีต 19/20
   //   ต้องประกาศก่อนสร้างกล่องข้อความ เพราะติ๊กถูกใช้ค่านี้ด้วย
   const toneRaw = str((dt.bubbleStyle || {})['Tone Scope'] || (dt.bannerStyle || {})['Tone Scope'], '').toUpperCase();
