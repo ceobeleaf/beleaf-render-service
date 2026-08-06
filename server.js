@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.6';
+const BUILD = 'v6.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -166,7 +166,7 @@ const PATTERNS = {
   // v4.2: วัดจากภาพอ้างอิงจริง — กล่องพารากราฟกว้าง 49-50% เริ่มที่ 30-31% ไม่ใช่ 46%/36%
   'para-left':   { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', left: '4%' }] },
   'para-right':  { kind: 'paragraph', maxWidth: '50%', font: 0.040, slots: [{ top: '31%', right: '3%' }] },
-  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ bottom: '4%', left: '6%' }] },
+  'para-bottom': { kind: 'paragraph', maxWidth: '88%', font: 0.034, slots: [{ bottom: '4%', left: '6%', centerX: true }] },
 };
 
 // v4.2: ฟอนต์พารากราฟแปรตามจำนวนบรรทัด — วัดได้ 5 บรรทัด 53px / 7 บรรทัด 43px
@@ -509,7 +509,7 @@ function buildHtml(payload) {
   };
   const bubbleHtml = blocks.map((t, i) => {
     const slot = slotOrder[i];
-    const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
+    const pos = slot.centerX ? 'left:50%; transform:translateX(-50%);' : (slot.left ? `left:${slot.left};` : `right:${slot.right};`);
     // v6.1: ถ้าผังบอกระยะจากขอบล่าง ให้เกาะขอบล่างจริง จะได้ชิดขอบเหมือนพาดหัวชิดขอบบน
     const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
     const anchorClass = slot.bottom ? ' bubble-bottom' : '';
