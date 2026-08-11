@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.7';
+const BUILD = 'v6.8';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -219,6 +219,17 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   const inset = 'max-width:88%; padding:0.42em 0.90em;';
   const full = 'width:100%; padding:0.46em 4%;';
 
+  // v6.8: พาดหัวตัวอักษรขอบขาว วางทับรูป ไม่มีกล่องพื้นหลัง
+  if (/outline-bold|outline|stroke/.test(s)) {
+    return {
+      css: `max-width:94%; padding:0.06em 0;
+            background:transparent; box-shadow:none;
+            color:${textColor};`,
+      extra: `-webkit-text-stroke:0.13em #FFFFFF;
+              paint-order:stroke fill;
+              text-shadow:0 0.09em 0.13em rgba(0,0,0,.42);`,
+    };
+  }
   if (/text-only|underline|none/.test(s)) {
     return {
       css: `max-width:88%; padding:0.10em 0;
@@ -584,7 +595,7 @@ function buildHtml(payload) {
     font-size:${headlinePx}px;
     line-height:1.18;
     letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
-    white-space:nowrap;
+    white-space:${/outline-bold|outline|stroke/i.test(shapeForBanner) ? 'normal' : 'nowrap'};
     /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
     text-align:center;
   }
