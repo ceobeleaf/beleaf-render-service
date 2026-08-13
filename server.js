@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.4';
+const BUILD = 'v7.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -642,8 +642,8 @@ function buildHtml(payload) {
     white-space:nowrap; line-height:1.22;
     box-shadow:0 8px 22px rgba(0,0,0,.16);
   }
-  .pill-a { background:${accent}; transform:translateX(-3%); }
-  .pill-b { background:${accent2}; transform:translateX(4%); }
+  .pill-a { background:${accent}; transform:translateX(-3%) rotate(-2.2deg); }
+  .pill-b { background:${accent2}; transform:translateX(4%) rotate(1.6deg); }
   .sticker {
     position:absolute;
     font-family:'Noto Color Emoji',sans-serif;
