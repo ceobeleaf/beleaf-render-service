@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.3';
+const BUILD = 'v7.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -575,7 +575,7 @@ function buildHtml(payload) {
   const byKeyword = EMOJI_MAP.find(([re]) => re.test(matchText));
   const first = fromContent[0] || (byKeyword ? byKeyword[1] : tonePool[hash % tonePool.length]);
   const second = fromContent[1] || tonePool[(hash + 3) % tonePool.length] || '\u2728';
-  const chosen = isPillStack ? [first, second === first ? '\u2728' : second] : [first];
+  const chosen = /pill-stack|stack-pill|two-pill/i.test(shapeForBanner) ? [first, second === first ? '\u2728' : second] : [first];
   // v7.3: pill-stack — แบ่งพาดหัวเป็น 2 ท่อนให้สมดุล แล้วห่อด้วย pill คนละสี
   const isPillStack = /pill-stack|stack-pill|two-pill/i.test(shapeForBanner);
   const accent2 = str(bannerSheet['Background Color 2'] || bannerSheet['Accent Color 2'], '#A970D8');
