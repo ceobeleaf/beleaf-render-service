@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.0';
+const BUILD = 'v7.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -225,7 +225,7 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
       css: `max-width:97%; padding:0.06em 0;
             background:transparent; box-shadow:none;
             color:${textColor};`,
-      extra: `-webkit-text-stroke:0.13em #FFFFFF;
+      extra: `-webkit-text-stroke:0.20em #FFFFFF;
               paint-order:stroke fill;
               text-shadow:none;
               word-break:keep-all;
