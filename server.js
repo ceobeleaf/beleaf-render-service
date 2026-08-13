@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.9';
+const BUILD = 'v7.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -228,8 +228,9 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
       extra: `-webkit-text-stroke:0.13em #FFFFFF;
               paint-order:stroke fill;
               text-shadow:none;
-              text-wrap:balance;
-              line-height:1.12;`,
+              word-break:keep-all;
+              overflow-wrap:normal;
+              line-height:1.10;`,
     };
   }
   if (/text-only|underline|none/.test(s)) {
@@ -656,7 +657,7 @@ function buildHtml(payload) {
     }
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
-    fit(bannerBox, bannerText, ${isTag ? 0.80 : 0.90});
+    fit(bannerBox, bannerText, ${/outline-bold|outline|stroke/i.test(shapeForBanner) ? 0.97 : (isTag ? 0.80 : 0.90)});
 
     // v4.5: เกาะสติกเกอร์เข้ากับป้ายพาดหัว ตำแหน่งแยกรายเพจ
     // ของเดิมฟิกซ์ไว้ที่มุมภาพ (top:0.8% left:2%) ทุกเพจจึงเหมือนกันหมด
