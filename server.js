@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.2';
+const BUILD = 'v7.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -220,6 +220,13 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   const full = 'width:100%; padding:0.46em 4%;';
 
   // v6.8: พาดหัวตัวอักษรขอบขาว วางทับรูป ไม่มีกล่องพื้นหลัง
+  // v7.3: pill-stack — 2 กล่องแคปซูลซ้อนกัน สีต่างกัน
+  if (/pill-stack|stack-pill|two-pill/.test(s)) {
+    return {
+      css: `max-width:96%; padding:0; background:transparent; box-shadow:none;`,
+      extra: '',
+    };
+  }
   if (/outline-bold|outline|stroke/.test(s)) {
     return {
       css: `max-width:97%; padding:0.06em 0;
@@ -566,10 +573,32 @@ function buildHtml(payload) {
   const fromContent = [...hRaw.emoji, ...stickers].filter(Boolean);
   const matchText = [headline, ...blocks].join(' ');
   const byKeyword = EMOJI_MAP.find(([re]) => re.test(matchText));
-  const chosen = [
-    fromContent[0] ||
-    (byKeyword ? byKeyword[1] : tonePool[hash % tonePool.length])
-  ];
+  const first = fromContent[0] || (byKeyword ? byKeyword[1] : tonePool[hash % tonePool.length]);
+  const second = fromContent[1] || tonePool[(hash + 3) % tonePool.length] || '\u2728';
+  const chosen = isPillStack ? [first, second === first ? '\u2728' : second] : [first];
+  // v7.3: pill-stack — แบ่งพาดหัวเป็น 2 ท่อนให้สมดุล แล้วห่อด้วย pill คนละสี
+  const isPillStack = /pill-stack|stack-pill|two-pill/i.test(shapeForBanner);
+  const accent2 = str(bannerSheet['Background Color 2'] || bannerSheet['Accent Color 2'], '#A970D8');
+  let bannerInnerHtml = `<span class="banner-inner">${esc(headline)}</span>`;
+  if (isPillStack) {
+    const words = headline.split(/\s+/).filter(Boolean);
+    let a = headline, b = '';
+    if (words.length > 1) {
+      let best = 1e9, at = 1;
+      for (let i = 1; i < words.length; i += 1) {
+        const l1 = words.slice(0, i).join(' ').length;
+        const l2 = words.slice(i).join(' ').length;
+        const d = Math.abs(l1 - l2);
+        if (d < best) { best = d; at = i; }
+      }
+      a = words.slice(0, at).join(' ');
+      b = words.slice(at).join(' ');
+    } else if (headline.length > 10) {
+      const mid = Math.round(headline.length / 2);
+      a = headline.slice(0, mid); b = headline.slice(mid);
+    }
+    bannerInnerHtml = `<span class="pill pill-a">${esc(a)}</span>` + (b ? `<span class="pill pill-b">${esc(b)}</span>` : '');
+  }
   const CLASSES = ['sticker-left', 'sticker-right', 'sticker-third'];
   const stickerHtml = showSticker
     ? chosen.map((c, i) => `<div class="sticker ${CLASSES[i] || 'sticker-third'}">${esc(c)}</div>`).join('')
@@ -605,6 +634,16 @@ function buildHtml(payload) {
   /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
      ทำให้ลูปย่อฟอนต์ไม่เคยหมุน (ต้นเหตุตัวหนังสือล้นตั้งแต่ v3.1) */
   .banner-inner { display:inline-block; ${bStyle.extra} }
+  /* v7.3: pill-stack */
+  .banner { ${isPillStack ? "flex-direction:column; gap:0.10em; align-items:center;" : ""} }
+  .pill {
+    display:inline-block; border-radius:999px;
+    padding:0.22em 0.72em; color:#FFFFFF; font-weight:800;
+    white-space:nowrap; line-height:1.22;
+    box-shadow:0 8px 22px rgba(0,0,0,.16);
+  }
+  .pill-a { background:${accent}; transform:translateX(-3%); }
+  .pill-b { background:${accent2}; transform:translateX(4%); }
   .sticker {
     position:absolute;
     font-family:'Noto Color Emoji',sans-serif;
@@ -640,7 +679,7 @@ function buildHtml(payload) {
   <div class="stage">
     <div class="photo"></div>
     ${stickerHtml}
-    <div class="banner" id="banner"><span class="banner-inner">${esc(headline)}</span></div>
+    <div class="banner" id="banner">${bannerInnerHtml}</div>
     ${bubbleHtml}
   </div>
   <script>
