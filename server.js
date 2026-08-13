@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v6.8';
+const BUILD = 'v6.9';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -222,12 +222,14 @@ function bannerStyle({ shape, radius, shadow, accent, textColor, isTag }) {
   // v6.8: พาดหัวตัวอักษรขอบขาว วางทับรูป ไม่มีกล่องพื้นหลัง
   if (/outline-bold|outline|stroke/.test(s)) {
     return {
-      css: `max-width:94%; padding:0.06em 0;
+      css: `max-width:97%; padding:0.06em 0;
             background:transparent; box-shadow:none;
             color:${textColor};`,
       extra: `-webkit-text-stroke:0.13em #FFFFFF;
               paint-order:stroke fill;
-              text-shadow:0 0.09em 0.13em rgba(0,0,0,.42);`,
+              text-shadow:none;
+              text-wrap:balance;
+              line-height:1.12;`,
     };
   }
   if (/text-only|underline|none/.test(s)) {
