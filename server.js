@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.1';
+const BUILD = 'v7.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -598,7 +598,7 @@ function buildHtml(payload) {
     font-size:${headlinePx}px;
     line-height:1.18;
     letter-spacing:${str(typo.letterSpacing, '0').replace(/px$/, '')}px;
-    white-space:${/outline-bold|outline|stroke/i.test(shapeForBanner) ? 'normal' : 'nowrap'};
+    white-space:nowrap;
     /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
     text-align:center;
   }
@@ -657,7 +657,14 @@ function buildHtml(payload) {
     }
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
-    fit(bannerBox, bannerText, ${/outline-bold|outline|stroke/i.test(shapeForBanner) ? 0.97 : (isTag ? 0.80 : 0.90)});
+    var __outline = ${/outline-bold|outline|stroke/i.test(shapeForBanner) ? 'true' : 'false'};
+    fit(bannerBox, bannerText, __outline ? 0.97 : ${isTag ? 0.80 : 0.90});
+    // v7.2: ถ้าย่อจนเล็กเกินไป คืนขนาดเดิมแล้วยอมให้ขึ้นบรรทัดใหม่
+    if (__outline && bannerBox && parseFloat(getComputedStyle(bannerBox).fontSize) < 56) {
+      bannerBox.style.fontSize = '${headlinePx}px';
+      bannerBox.style.whiteSpace = 'normal';
+      fit(bannerBox, bannerText, 0.97);
+    }
 
     // v4.5: เกาะสติกเกอร์เข้ากับป้ายพาดหัว ตำแหน่งแยกรายเพจ
     // ของเดิมฟิกซ์ไว้ที่มุมภาพ (top:0.8% left:2%) ทุกเพจจึงเหมือนกันหมด
