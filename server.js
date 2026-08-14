@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.6';
+const BUILD = 'v7.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -658,22 +658,34 @@ function buildHtml(payload) {
   .bubble > span { display:inline-block; }
   .bubble {
     position:absolute;
-    background:${bubbleBgRaw};
+    background:${isParagraphLayout ? 'transparent' : bubbleBgRaw};
     color:${bubbleFg};
-    ${hasBorder ? `border:${bubbleBorder};` : ''}
+    ${(hasBorder && !isParagraphLayout) ? `border:${bubbleBorder};` : ''}
     ${backdrop}
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
     font-weight:700;
     font-size:${bubbleFontPx}px;
     line-height:1.28;
-    padding:${isParagraphLayout ? '0.40em 0.60em' : '0.52em 0.9em'};
+    padding:${isParagraphLayout ? '0' : '0.52em 0.9em'};
     border-radius:${bubbleRadius}px;
-    box-shadow:${isTransparent ? 'none' : bubbleShadow};
+    box-shadow:${(isTransparent || isParagraphLayout) ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
     white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
     ${isParagraphLayout ? 'text-align:center; line-height:1.5;' : ''}
   }
+  /* v7.7: พารากราฟ — พื้นหลังหุ้มตามความยาวของแต่ละบรรทัด */
+  ${isParagraphLayout ? `
+  .bubble > span {
+    display:inline;
+    background:${bubbleBgRaw};
+    -webkit-box-decoration-break:clone;
+    box-decoration-break:clone;
+    padding:0.16em 0.46em;
+    border-radius:${bubbleRadius}px;
+    box-shadow:${isTransparent ? 'none' : bubbleShadow};
+    ${hasBorder ? `border:${bubbleBorder};` : ''}
+  }` : ''}
 </style></head>
 <body>
   <div class="stage">
