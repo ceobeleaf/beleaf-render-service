@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.7';
+const BUILD = 'v7.8';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -176,9 +176,9 @@ function paragraphFont(lines) {
   if (lines <= 4) return 0.046;   // 50px
   if (lines <= 5) return 0.044;   // 48px
   if (lines <= 6) return 0.040;   // 43px
-  if (lines <= 7) return 0.037;   // 40px
-  if (lines <= 9) return 0.033;   // 36px
-  return 0.030;                   // 32px
+  if (lines <= 7) return 0.042;   // 45px
+  if (lines <= 9) return 0.039;   // 42px
+  return 0.036;                   // 32px
 }
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
@@ -478,6 +478,8 @@ function buildHtml(payload) {
   const bubbleShape = str(bubble.shape, 'rounded-rect').toLowerCase();
   const bubbleRadius = /pill/.test(bubbleShape) ? 999 : 22;
   const bubbleShadow = shadowOf(bubble.shadow, 'soft');
+  // v7.8: พื้นหลังหุ้มตามบรรทัด — เปิดเฉพาะเพจที่ชีต 19 Bubble Shape มีคำว่า hug
+  const hugLines = isParagraphLayout && /hug|per-line|line-hug/i.test(bubbleShape);
   // v5.3: เจ้าของสั่งห้ามมีเงาตัวหนังสือทุกตำแหน่ง เพราะอ่านยาก
   // ความอ่านออกบนพื้นโปร่งให้แก้ด้วยการเลือกคู่สีที่ตัดกันแทน
   const bubbleTextShadow = '';
@@ -658,24 +660,24 @@ function buildHtml(payload) {
   .bubble > span { display:inline-block; }
   .bubble {
     position:absolute;
-    background:${isParagraphLayout ? 'transparent' : bubbleBgRaw};
+    background:${hugLines ? 'transparent' : bubbleBgRaw};
     color:${bubbleFg};
-    ${(hasBorder && !isParagraphLayout) ? `border:${bubbleBorder};` : ''}
+    ${(hasBorder && !hugLines) ? `border:${bubbleBorder};` : ''}
     ${backdrop}
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
     font-weight:700;
     font-size:${bubbleFontPx}px;
     line-height:1.28;
-    padding:${isParagraphLayout ? '0' : '0.52em 0.9em'};
+    padding:${hugLines ? '0' : (isParagraphLayout ? '0.40em 0.60em' : '0.52em 0.9em')};
     border-radius:${bubbleRadius}px;
-    box-shadow:${(isTransparent || isParagraphLayout) ? 'none' : bubbleShadow};
+    box-shadow:${(isTransparent || hugLines) ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
     white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
     ${isParagraphLayout ? 'text-align:center; line-height:1.5;' : ''}
   }
   /* v7.7: พารากราฟ — พื้นหลังหุ้มตามความยาวของแต่ละบรรทัด */
-  ${isParagraphLayout ? `
+  ${hugLines ? `
   .bubble > span {
     display:inline;
     background:${bubbleBgRaw};
@@ -780,7 +782,7 @@ function buildHtml(payload) {
       var guard = 0;
       while (guard < 90) {
         if (box.getBoundingClientRect().bottom <= bottomLimit) return;
-        if (size <= 26) return;
+        if (size <= 36) return;
         size -= 1; box.style.fontSize = size + 'px'; guard++;
       }
     }
