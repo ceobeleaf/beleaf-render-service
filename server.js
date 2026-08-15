@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.1';
+const BUILD = 'v8.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -675,7 +675,7 @@ function buildHtml(payload) {
     box-shadow:${(isTransparent || hugLines) ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
     white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
-    ${isParagraphLayout ? `text-align:center; line-height:${hugLines ? '1.95' : '1.5'};` : ''}
+    ${isParagraphLayout ? `text-align:center; line-height:${hugLines ? '1.52' : '1.5'};` : ''}
   }
   /* v7.7: พารากราฟ — พื้นหลังหุ้มตามความยาวของแต่ละบรรทัด */
   ${hugLines ? `
