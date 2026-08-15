@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.0';
+const BUILD = 'v8.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -173,12 +173,12 @@ const PATTERNS = {
 // ของเดิมใช้ค่าเดียว บรรทัดน้อยเลยดูโหวง บรรทัดเยอะเลยล้น
 function paragraphFont(lines) {
   // v4.7: ลดลงจาก v4.5 ราว 8% ทุกช่วง ตามที่เจ้าของแจ้งว่าตัวหนังสือใหญ่ไป
-  if (lines <= 4) return 0.046;   // 50px
-  if (lines <= 5) return 0.044;   // 48px
-  if (lines <= 6) return 0.040;   // 43px
-  if (lines <= 7) return 0.042;   // 45px
-  if (lines <= 9) return 0.039;   // 42px
-  return 0.036;                   // 32px
+  if (lines <= 4) return 0.052;
+  if (lines <= 5) return 0.050;
+  if (lines <= 6) return 0.046;
+  if (lines <= 7) return 0.047;
+  if (lines <= 9) return 0.044;
+  return 0.041;                   // 32px
 }
 const DEFAULT_PATTERN = 'split';
 const DEFAULT_PARAGRAPH_PATTERN = 'para-left';
@@ -666,7 +666,7 @@ function buildHtml(payload) {
     ${backdrop}
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
-    font-weight:${isParagraphLayout ? 500 : 600};
+    font-weight:${isParagraphLayout ? 400 : 500};
     font-size:${bubbleFontPx}px;
     line-height:1.34;
     letter-spacing:0.005em;
@@ -783,7 +783,7 @@ function buildHtml(payload) {
       var guard = 0;
       while (guard < 90) {
         if (box.getBoundingClientRect().bottom <= bottomLimit) return;
-        if (size <= 36) return;
+        if (size <= 40) return;
         size -= 1; box.style.fontSize = size + 'px'; guard++;
       }
     }
