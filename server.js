@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.8';
+const BUILD = 'v7.9';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -674,7 +674,7 @@ function buildHtml(payload) {
     box-shadow:${(isTransparent || hugLines) ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
     white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
-    ${isParagraphLayout ? 'text-align:center; line-height:1.5;' : ''}
+    ${isParagraphLayout ? `text-align:center; line-height:${hugLines ? '1.95' : '1.5'};` : ''}
   }
   /* v7.7: พารากราฟ — พื้นหลังหุ้มตามความยาวของแต่ละบรรทัด */
   ${hugLines ? `
@@ -683,7 +683,7 @@ function buildHtml(payload) {
     background:${bubbleBgRaw};
     -webkit-box-decoration-break:clone;
     box-decoration-break:clone;
-    padding:0.16em 0.46em;
+    padding:0.28em 0.72em;
     border-radius:${bubbleRadius}px;
     box-shadow:${isTransparent ? 'none' : bubbleShadow};
     ${hasBorder ? `border:${bubbleBorder};` : ''}
