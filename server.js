@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v7.9';
+const BUILD = 'v8.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -666,9 +666,10 @@ function buildHtml(payload) {
     ${backdrop}
     ${bubbleTextShadow}
     font-family:'${fontBody}',sans-serif;
-    font-weight:700;
+    font-weight:${isParagraphLayout ? 500 : 600};
     font-size:${bubbleFontPx}px;
-    line-height:1.28;
+    line-height:1.34;
+    letter-spacing:0.005em;
     padding:${hugLines ? '0' : (isParagraphLayout ? '0.40em 0.60em' : '0.52em 0.9em')};
     border-radius:${bubbleRadius}px;
     box-shadow:${(isTransparent || hugLines) ? 'none' : bubbleShadow};
