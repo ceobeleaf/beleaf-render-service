@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.4';
+const BUILD = 'v8.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -580,6 +580,11 @@ function buildHtml(payload) {
   const chosen = /pill-stack|stack-pill|two-pill|label-stack/i.test(shapeForBanner) ? [first, second === first ? '\u2728' : second] : [first];
   // v7.3: pill-stack — แบ่งพาดหัวเป็น 2 ท่อนให้สมดุล แล้วห่อด้วย pill คนละสี
   const isLabelStack = /label-stack/i.test(shapeForBanner);
+  // v8.5: มุมโค้งจากคอลัมน์ Corner Radius · องศาเอียงจากคอลัมน์ Tilt Deg (0 = ไม่เอียง)
+  const pillRadius = Number(str(banner.radius || banner['Corner Radius'], '')) || 999;
+  const tiltRaw = str(banner.tilt || banner['Tilt Deg'], '');
+  const tiltA = tiltRaw === '' ? 2.2 : (Number(tiltRaw) || 0);
+  const tiltB = Math.round(tiltA * 0.72 * 10) / 10;
   const isPillStack = isLabelStack || /pill-stack|stack-pill|two-pill/i.test(shapeForBanner);
   const accent2 = str(bannerSheet['Background Color 2'] || bannerSheet['Accent Color 2'], '#A970D8');
   let bannerInnerHtml = `<span class="banner-inner">${esc(headline)}</span>`;
@@ -643,13 +648,14 @@ function buildHtml(payload) {
     white-space:nowrap; line-height:1.22;
     box-shadow:0 8px 22px rgba(0,0,0,.16);
   }
+  .pill { border-radius:${pillRadius}px; }
   ${isLabelStack ? `
-  .pill { border-radius:40px; padding:0.20em 0.80em; }
-  .pill-a { background:#FFFFFF; color:#1C1C1E; transform:translateX(-8%); }
-  .pill-b { background:${accent2 || accent}; color:#FFFFFF; transform:translateX(4%); }
+  .pill { padding:0.20em 0.80em; }
+  .pill-a { background:#FFFFFF; color:#1C1C1E; transform:translateX(-8%) rotate(-${tiltA}deg); }
+  .pill-b { background:${accent2 || accent}; color:#FFFFFF; transform:translateX(4%) rotate(${tiltB}deg); }
   ` : `
-  .pill-a { background:${accent}; transform:translateX(-3%) rotate(-2.2deg); }
-  .pill-b { background:${accent2}; transform:translateX(4%) rotate(1.6deg); }
+  .pill-a { background:${accent}; transform:translateX(-3%) rotate(-${tiltA}deg); }
+  .pill-b { background:${accent2}; transform:translateX(4%) rotate(${tiltB}deg); }
   `}
   .sticker {
     position:absolute;
