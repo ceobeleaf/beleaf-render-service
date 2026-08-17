@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.3';
+const BUILD = 'v8.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -596,10 +596,8 @@ function buildHtml(payload) {
       }
       a = words.slice(0, at).join(' ');
       b = words.slice(at).join(' ');
-    } else if (headline.length > 10) {
-      const mid = Math.round(headline.length / 2);
-      a = headline.slice(0, mid); b = headline.slice(mid);
     }
+    // v8.4: ไม่มีช่องว่าง = คำไทยติดกัน ห้ามตัดกลางคำ ใช้แคปซูลเดียวแทน
     bannerInnerHtml = `<span class="pill pill-a">${esc(a)}</span>` + (b ? `<span class="pill pill-b">${esc(b)}</span>` : '');
   }
   const CLASSES = ['sticker-left', 'sticker-right', 'sticker-third'];
