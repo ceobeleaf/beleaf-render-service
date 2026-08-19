@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.5';
+const BUILD = 'v8.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -41,6 +41,24 @@ const num = (v, d) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
 };
+
+// v8.6: ลบอักขระควบคุม และเศษอีโมจิที่ขาดคู่ (ต้นเหตุ 4BB/4F2 โผล่ในภาพ)
+function sanitizeText(v) {
+  var t = String(v == null ? '' : v);
+  var o = '';
+  for (var i = 0; i < t.length; i++) {
+    var c = t.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF) {
+      var n = t.charCodeAt(i + 1);
+      if (n >= 0xDC00 && n <= 0xDFFF) { o += t.charAt(i) + t.charAt(i + 1); i++; }
+      continue;
+    }
+    if (c >= 0xDC00 && c <= 0xDFFF) continue;
+    if (c < 0x20 || c === 0x7F) { if (c === 0x0A) { o += t.charAt(i); } continue; }
+    o += t.charAt(i);
+  }
+  return o.replace(/ {2,}/g, ' ').trim();
+}
 const esc = (s) =>
   String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -382,7 +400,7 @@ function buildHtml(payload) {
   });
 
   const hRaw = splitEmoji(payload.headline || '');
-  const headline = hRaw.text;
+  const headline = sanitizeText(hRaw.text);
 
   let overlay = Array.isArray(payload.overlayText) ? payload.overlayText : [];
   if (!overlay.length && Array.isArray(payload?.panel?.overlayText)) {
@@ -393,7 +411,7 @@ function buildHtml(payload) {
   // ของเดิมตั้ง nowrap ทำให้ยุบเป็นบรรทัดเดียวยาว จึงแตกออกเป็นกล่องละบรรทัดก่อน
   const rawBlocks = overlay
     .flatMap((t) => String(t ?? '').split(/\r?\n+/))
-    .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return s.text; })
+    .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return sanitizeText(s.text); })
     .filter(Boolean);
 
   // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
