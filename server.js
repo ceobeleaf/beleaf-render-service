@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.6';
+const BUILD = 'v8.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -503,6 +503,9 @@ function buildHtml(payload) {
   const bubbleTextShadow = '';
   const backdrop = /rgba\(/i.test(bubbleBgRaw) ? 'backdrop-filter:blur(6px);' : '';
 
+  // v8.7: ความแรงการปรับแสง — ชีต 18 คอลัมน์ Photo Enhance (0 = ปิด, 1 = ปกติ, 1.5 = แรง)
+  const enhRaw = str(typo['Photo Enhance'] || (dt.bannerStyle || {})['Photo Enhance'], '');
+  const enhance = enhRaw === '' ? 1 : Math.max(0, Math.min(2, Number(enhRaw) || 0));
   const fontHeadline = fontFamily(typo.fontHeadline, 'Anuphan');
   const fontBody = fontFamily(typo.fontBody, 'IBM Plex Sans Thai');
   const headlineWeight = num(typo.headlineWeight, 800);
@@ -721,7 +724,7 @@ function buildHtml(payload) {
 </style></head>
 <body>
   <div class="stage">
-    <div class="photo"></div>
+    <div class="photo" id="photo"></div>
     ${stickerHtml}
     <div class="banner" id="banner">${bannerInnerHtml}</div>
     ${bubbleHtml}
@@ -737,6 +740,31 @@ function buildHtml(payload) {
       while (measured.scrollWidth > limit && size > 22 && guard < 60) {
         size -= 2; box.style.fontSize = size + 'px'; guard++;
       }
+    }
+    // v8.7: วัดความสว่างจริงของภาพ แล้วปรับเท่าที่ขาด — ไม่แตะรายละเอียดภาพ
+    var __enh = ${enhance};
+    if (__enh > 0) {
+      try {
+        var im = new Image();
+        im.src = document.querySelector('.photo') ? '${payload.__imageDataUrl}' : '';
+        var cv = document.createElement('canvas');
+        cv.width = 60; cv.height = 60;
+        var cx2 = cv.getContext('2d');
+        cx2.drawImage(im, 0, 0, 60, 60);
+        var px = cx2.getImageData(0, 0, 60, 60).data;
+        var sum = 0, nPix = 0;
+        for (var p = 0; p < px.length; p += 4) {
+          sum += (px[p] * 0.2126 + px[p + 1] * 0.7152 + px[p + 2] * 0.0722);
+          nPix++;
+        }
+        var avg = nPix ? (sum / nPix) / 255 : 0.5;
+        // เป้าความสว่าง 0.56 · ภาพมืดเพิ่มมาก ภาพสว่างแล้วแทบไม่แตะ
+        var br = 1 + Math.max(-0.06, Math.min(0.26, (0.56 - avg) * 0.85)) * __enh;
+        var ct = 1 + 0.06 * __enh;
+        var st = 1 + 0.10 * __enh;
+        var ph = document.getElementById('photo');
+        if (ph) ph.style.filter = 'brightness(' + br.toFixed(3) + ') contrast(' + ct.toFixed(3) + ') saturate(' + st.toFixed(3) + ')';
+      } catch (e) {}
     }
     var bannerBox = document.getElementById('banner');
     var bannerText = bannerBox ? bannerBox.querySelector('.banner-inner') : null;
