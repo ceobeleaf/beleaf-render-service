@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.8';
+const BUILD = 'v8.9';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -403,6 +403,8 @@ function buildHtml(payload) {
   //   ถ้า WF2 ไม่ส่งมา ทุกอย่างทำงานเหมือน v8.7 ทุกประการ เพจอื่นจึงไม่กระทบ
   //   headlineMode = brand-split    -> พาดหัว 2 บรรทัด 2 สี (บนสีสินค้า / ล่างขาว)
   //   headlineMode = white-on-black -> บังคับตัวขาวพื้นดำ ทับค่าจากชีต 20
+  // v8.9: เพจที่ใช้ระบบผังรายภาพ — ปิดสติกเกอร์ และบังคับป้ายพาดหัวทรงมน
+  const panelLayoutOn = Boolean(str(rd.panelLayoutSource));
   const headlineMode = str(rd.headlineMode).toLowerCase();
   const brandColor = str(rd.brandColor, '');
   const rawHeadlineIn = str(payload.headline);
@@ -418,8 +420,10 @@ function buildHtml(payload) {
 
   const bannerShapeRaw = str(banner.shape, '');
   const bannerModeRaw = str(rd.bannerMode, '');
-  const shapeForBanner = bannerShapeRaw || bannerModeRaw || 'rounded-rect';
-  const isTag = /tag|chip|pill|rounded/i.test(bannerModeRaw || bannerShapeRaw);
+  // v8.9: ผังรายภาพใช้ป้ายทรงสี่เหลี่ยมมุมมนเสมอ ตามภาพต้นแบบที่เจ้าของส่งมา
+  //   ของเดิมเอาทรงจากชีต 20 (P033 = ribbon-cut ปลายบาก) ซึ่งไม่ตรงต้นแบบ
+  const shapeForBanner = panelLayoutOn ? 'rounded-rect' : (bannerShapeRaw || bannerModeRaw || 'rounded-rect');
+  const isTag = panelLayoutOn ? false : /tag|chip|pill|rounded/i.test(bannerModeRaw || bannerShapeRaw);
 
   // v3.6: พาดหัวอยู่บนกึ่งกลางเสมอทุกเพจ (เจ้าของกำหนด 28 ก.ค. 69)
   // ชีต 18 (Banner Position / Alignment / Product Emphasis) เลิกใช้แล้ว
@@ -441,7 +445,7 @@ function buildHtml(payload) {
 
   const bStyleSheet = bannerStyle({
     shape: shapeForBanner,
-    radius: num(banner.cornerRadius, 24),
+    radius: panelLayoutOn ? 18 : num(banner.cornerRadius, 24),
     shadow: shadowOf(banner.shadow, 'soft'),
     accent,
     textColor: headlineColor,
@@ -642,7 +646,8 @@ function buildHtml(payload) {
   // v5.9: สเปกใหม่ให้ทุกโทนมีสติกเกอร์ จำนวนและตำแหน่งคุมด้วยโทนแทน
   //   ของเดิมเปิดเฉพาะค่าตกแต่ง emoji_prefix/sticker/sparkle
   //   ทำให้เพจที่ตั้งเป็น Line หรือ Arrow ไม่มีสติกเกอร์เลยสักอัน
-  const showSticker = true;
+  // v8.9: เพจที่ใช้ผังรายภาพไม่เอาสติกเกอร์ เพราะไปทับป้ายพาดหัว (เจ้าของสั่งปิด)
+  const showSticker = !panelLayoutOn;
   // v6.0: ลำดับการเลือกสติกเกอร์ ให้ตรงเนื้อหาเป็นหลัก
   //   1) อีโมจิที่อยู่ในเนื้อหาอยู่แล้ว = เจตนาของคนเขียน
   //   2) จับคำจากพาดหัวและข้อความบนภาพ ผ่าน EMOJI_MAP
@@ -724,7 +729,7 @@ function buildHtml(payload) {
   .hl2 {
     display:inline-block; white-space:nowrap;
     padding:0.16em 0.58em; line-height:1.22;
-    border-radius:${num(banner.cornerRadius, 8)}px;
+    border-radius:14px;
     box-shadow:0 6px 18px rgba(0,0,0,.18);
   }
   .hl2-a { background:${accent}; color:#FFFFFF; }
@@ -857,7 +862,7 @@ function buildHtml(payload) {
         sz -= 2; bannerBox.style.fontSize = sz + 'px'; g2++;
       }
     }` : `
-    fit(bannerBox, bannerText, __outline ? 0.97 : ${isTag ? 0.80 : 0.90});`}
+    fit(bannerBox, bannerText, __outline ? 0.97 : ${panelLayoutOn ? 0.84 : (isTag ? 0.80 : 0.90)});`}
     // v7.2: ถ้าย่อจนเล็กเกินไป คืนขนาดเดิมแล้วยอมให้ขึ้นบรรทัดใหม่
     if (__outline && bannerBox && parseFloat(getComputedStyle(bannerBox).fontSize) < 56) {
       bannerBox.style.fontSize = '${headlinePx}px';
