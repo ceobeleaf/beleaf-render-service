@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.1';
+const BUILD = 'v9.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -402,11 +402,15 @@ function buildHtml(payload) {
   const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', 4) : 0;
   const hlTiltDeg = panelLayoutOn ? jitter(jSeed + '|r', 1.5) : 0;
   const hlTopPct = panelLayoutOn ? 4.2 + jitter(jSeed + '|y', 0.8) : 4.2;
+  // v9.2: พาดหัว 2 บรรทัดของภาพแรกต้องใหญ่กว่าภาพอื่นราว 1.3 เท่า วัดจากภาพต้นแบบ
+  const splitLikely = panelLayoutOn
+    && str(rd.headlineMode).toLowerCase() === 'brand-split'
+    && str(payload.headline).indexOf('||') >= 0;
 
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * 0.92 : 1));
+  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? 1.42 : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(H * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -479,7 +483,7 @@ function buildHtml(payload) {
   });
   // v8.8: พาดหัว 2 บรรทัดวาดพื้นหลังเองรายบรรทัด กล่องนอกจึงต้องโปร่ง
   const bStyle = isBrandSplit
-    ? { css: 'max-width:94%; padding:0; background:transparent; box-shadow:none;', extra: '' }
+    ? { css: 'max-width:97%; padding:0; background:transparent; box-shadow:none;', extra: '' }
     : panelLayoutOn
     ? { css: `max-width:92%; padding:0.24em 0.66em; border-radius:18px;`
              + ` background:${accent}; color:${headlineColor};`
@@ -777,7 +781,7 @@ function buildHtml(payload) {
   }
   .hl2-b {
     background:#FFFFFF; color:#111111;
-    font-size:0.86em;
+    font-size:0.76em;
     -webkit-text-stroke:0.14em #FFFFFF;
     margin-left:5%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
@@ -896,7 +900,7 @@ function buildHtml(payload) {
     // v8.8: พาดหัว 2 บรรทัดไม่มี .banner-inner ต้องวัดจากบรรทัดที่กว้างที่สุดแทน
     if (bannerBox) {
       var parts = bannerBox.querySelectorAll('.hl2');
-      var lim = ${W} * 0.86;
+      var lim = ${W} * 0.94;
       var sz = parseFloat(getComputedStyle(bannerBox).fontSize);
       var g2 = 0;
       var widest = function () {
@@ -906,7 +910,7 @@ function buildHtml(payload) {
         }
         return w;
       };
-      while (widest() > lim && sz > 26 && g2 < 60) {
+      while (widest() > lim && sz > 46 && g2 < 60) {
         sz -= 2; bannerBox.style.fontSize = sz + 'px'; g2++;
       }
     }` : `
