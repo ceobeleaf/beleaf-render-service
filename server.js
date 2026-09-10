@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.0';
+const BUILD = 'v9.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -184,20 +184,22 @@ const PATTERNS = {
   // v8.8: ผังรายภาพสำหรับระบบ Panel Layout (ชีต 78) — ระยะขอบเท่ากันทุกช่อง
   //   ของเดิม left-stack/right-stack สลับระยะขอบ 4/9/13/8% ให้ดูเป็นมือคน
   //   แต่ผังใหม่ต้องการเรียงชิดขอบตรงกัน ไม่ให้ล้ำไปทับสินค้าฝั่งตรงข้าม
+  // v9.1: บอลลูน 2 บรรทัดสูงราว 13.6% ของภาพ ช่องห่าง 14% จึงเหลือช่องไฟแค่ 4px
+  //   ขยับเป็นช่องละ 17% เหลือช่องไฟราว 37px ตามที่เจ้าของขอ
   'left-stack-4': {
     kind: 'blocks', maxWidth: '48%', font: 0.038,
     slots: [
-      { top: '26%', left: '7%' }, { top: '40%', left: '7%' },
-      { top: '54%', left: '7%' }, { top: '68%', left: '7%' },
-      { top: '82%', left: '7%' }, { top: '12%', left: '7%' },
+      { top: '21%', left: '7%' }, { top: '38%', left: '7%' },
+      { top: '55%', left: '7%' }, { top: '72%', left: '7%' },
+      { top: '87%', left: '7%' }, { top: '6%', left: '7%' },
     ],
   },
   'right-stack-4': {
     kind: 'blocks', maxWidth: '48%', font: 0.038,
     slots: [
-      { top: '26%', right: '7%' }, { top: '40%', right: '7%' },
-      { top: '54%', right: '7%' }, { top: '68%', right: '7%' },
-      { top: '82%', right: '7%' }, { top: '12%', right: '7%' },
+      { top: '21%', right: '7%' }, { top: '38%', right: '7%' },
+      { top: '55%', right: '7%' }, { top: '72%', right: '7%' },
+      { top: '87%', right: '7%' }, { top: '6%', right: '7%' },
     ],
   },
   // v8.8: สองกล่องทแยงมุม — ช่องแรกบนซ้ายใต้พาดหัว ช่องสองล่างขวา
