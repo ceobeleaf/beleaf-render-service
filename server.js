@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v8.9';
+const BUILD = 'v9.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -185,28 +185,28 @@ const PATTERNS = {
   //   ของเดิม left-stack/right-stack สลับระยะขอบ 4/9/13/8% ให้ดูเป็นมือคน
   //   แต่ผังใหม่ต้องการเรียงชิดขอบตรงกัน ไม่ให้ล้ำไปทับสินค้าฝั่งตรงข้าม
   'left-stack-4': {
-    kind: 'blocks', maxWidth: '48%', font: 0.040,
+    kind: 'blocks', maxWidth: '48%', font: 0.038,
     slots: [
-      { top: '27%', left: '5%' }, { top: '41%', left: '5%' },
-      { top: '55%', left: '5%' }, { top: '69%', left: '5%' },
-      { top: '83%', left: '5%' }, { top: '13%', left: '5%' },
+      { top: '26%', left: '7%' }, { top: '40%', left: '7%' },
+      { top: '54%', left: '7%' }, { top: '68%', left: '7%' },
+      { top: '82%', left: '7%' }, { top: '12%', left: '7%' },
     ],
   },
   'right-stack-4': {
-    kind: 'blocks', maxWidth: '48%', font: 0.040,
+    kind: 'blocks', maxWidth: '48%', font: 0.038,
     slots: [
-      { top: '27%', right: '5%' }, { top: '41%', right: '5%' },
-      { top: '55%', right: '5%' }, { top: '69%', right: '5%' },
-      { top: '83%', right: '5%' }, { top: '13%', right: '5%' },
+      { top: '26%', right: '7%' }, { top: '40%', right: '7%' },
+      { top: '54%', right: '7%' }, { top: '68%', right: '7%' },
+      { top: '82%', right: '7%' }, { top: '12%', right: '7%' },
     ],
   },
   // v8.8: สองกล่องทแยงมุม — ช่องแรกบนซ้ายใต้พาดหัว ช่องสองล่างขวา
   'diag-2': {
     kind: 'blocks', maxWidth: '46%', font: 0.040,
     slots: [
-      { top: '24%', left: '5%' }, { top: '73%', right: '5%' },
-      { top: '48%', left: '5%' }, { top: '48%', right: '5%' },
-      { top: '24%', right: '5%' }, { top: '73%', left: '5%' },
+      { top: '24%', left: '7%' }, { top: '72%', right: '7%' },
+      { top: '48%', left: '7%' }, { top: '48%', right: '7%' },
+      { top: '24%', right: '7%' }, { top: '72%', left: '7%' },
     ],
   },
   // v4.2: วัดจากภาพอ้างอิงจริง — กล่องพารากราฟกว้าง 49-50% เริ่มที่ 30-31% ไม่ใช่ 46%/36%
@@ -371,6 +371,15 @@ function emojiForHeadline(headline, seed) {
   return EMOJI_FALLBACK[Math.abs(seed) % EMOJI_FALLBACK.length];
 }
 
+// v9.0: ความไม่เป๊ะแบบตายตัว — เพจเดิม ภาพเดิม ได้ค่าเดิมทุกครั้ง ไม่ใช่สุ่มใหม่ทุกรอบ
+function jitter(seed, spread) {
+  let h = 2166136261;
+  const t = String(seed);
+  for (let i = 0; i < t.length; i += 1) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h = h >>> 0;
+  return Math.round((((h % 2001) / 1000) - 1) * spread * 100) / 100;
+}
+
 function buildHtml(payload) {
   const dt = payload?.design?.designTemplate || {};
   const banner = dt.banner || {};
@@ -382,10 +391,20 @@ function buildHtml(payload) {
   const W = 1080;
   const H = 1080;
 
+  // v8.9/v9.0: เพจที่ใช้ระบบผังรายภาพ — ปิดสติกเกอร์ ป้ายทรงมน และมีความไม่เป๊ะรายภาพ
+  const panelLayoutOn = Boolean(str(rd.panelLayoutSource));
+  // v9.0: ค่าเยื้อง/เอียง/ขนาด รายภาพ ผูกกับ Page ID + เลขภาพ จึงคงที่เสมอ
+  const seqNo = num(payload.imageSequence, num(payload && payload.panel && payload.panel.sequence, 1));
+  const jSeed = str(dt.pageId || dt.designId || '') + '|' + seqNo;
+  const hlScale = panelLayoutOn ? 1 + jitter(jSeed + '|s', 0.06) / 1 : 1;
+  const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', 4) : 0;
+  const hlTiltDeg = panelLayoutOn ? jitter(jSeed + '|r', 1.5) : 0;
+  const hlTopPct = panelLayoutOn ? 4.2 + jitter(jSeed + '|y', 0.8) : 4.2;
+
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(H * sc.headline);
+  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * 0.92 : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(H * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -403,8 +422,6 @@ function buildHtml(payload) {
   //   ถ้า WF2 ไม่ส่งมา ทุกอย่างทำงานเหมือน v8.7 ทุกประการ เพจอื่นจึงไม่กระทบ
   //   headlineMode = brand-split    -> พาดหัว 2 บรรทัด 2 สี (บนสีสินค้า / ล่างขาว)
   //   headlineMode = white-on-black -> บังคับตัวขาวพื้นดำ ทับค่าจากชีต 20
-  // v8.9: เพจที่ใช้ระบบผังรายภาพ — ปิดสติกเกอร์ และบังคับป้ายพาดหัวทรงมน
-  const panelLayoutOn = Boolean(str(rd.panelLayoutSource));
   const headlineMode = str(rd.headlineMode).toLowerCase();
   const brandColor = str(rd.brandColor, '');
   const rawHeadlineIn = str(payload.headline);
@@ -437,8 +454,15 @@ function buildHtml(payload) {
   const emphasiseProduct = productVisibility >= 60;
 
   const placementCss = isBrandSplit
-    ? `top:4.6%; left:5%;
-       display:flex; flex-direction:column; align-items:flex-start; gap:0.10em;`
+    ? `top:${(hlTopPct + 0.5).toFixed(2)}%; left:50%;
+       margin-left:${Math.round(W * hlShiftPct / 100)}px;
+       transform:translateX(-50%);
+       display:flex; flex-direction:column; align-items:center; gap:0.12em;`
+    : panelLayoutOn
+    ? `top:${hlTopPct.toFixed(2)}%; left:50%;
+       margin-left:${Math.round(W * hlShiftPct / 100)}px;
+       transform:translateX(-50%) rotate(${hlTiltDeg}deg);
+       display:flex; align-items:center; justify-content:center;`
     : `top:4.2%; left:50%; transform:translateX(-50%);
     ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
     display:flex; align-items:center; justify-content:center;`;
@@ -453,10 +477,17 @@ function buildHtml(payload) {
   });
   // v8.8: พาดหัว 2 บรรทัดวาดพื้นหลังเองรายบรรทัด กล่องนอกจึงต้องโปร่ง
   const bStyle = isBrandSplit
-    ? { css: 'max-width:90%; padding:0; background:transparent; box-shadow:none;', extra: '' }
+    ? { css: 'max-width:94%; padding:0; background:transparent; box-shadow:none;', extra: '' }
+    : panelLayoutOn
+    ? { css: `max-width:92%; padding:0.24em 0.66em; border-radius:18px;`
+             + ` background:${accent}; color:${headlineColor};`
+             + ` box-shadow:${shadowOf(banner.shadow, 'soft')};`, extra: '' }
     : bStyleSheet;
 
-  const hRaw = splitEmoji(payload.headline || '');
+  // v9.0: เพจผังรายภาพพิมพ์อีโมจิมากับข้อความได้เลย ไม่ต้องดึงออกไปทำสติกเกอร์
+  const hRaw = panelLayoutOn
+    ? { text: str(payload.headline), emoji: [] }
+    : splitEmoji(payload.headline || '');
   const headline = sanitizeText(hRaw.text);
 
   let overlay = Array.isArray(payload.overlayText) ? payload.overlayText : [];
@@ -466,10 +497,13 @@ function buildHtml(payload) {
   const stickers = [];
   // v3.2: WF2 บางสูตรส่ง overlayText มาเป็นก้อนเดียวที่มี \n ข้างใน
   // ของเดิมตั้ง nowrap ทำให้ยุบเป็นบรรทัดเดียวยาว จึงแตกออกเป็นกล่องละบรรทัดก่อน
-  const rawBlocks = overlay
-    .flatMap((t) => String(t ?? '').split(/\r?\n+/))
-    .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return sanitizeText(s.text); })
-    .filter(Boolean);
+  // v9.0: เพจผังรายภาพ — 1 ก้อน = 1 บอลลูน และตัวคั่น " | " คือขึ้นบรรทัดใหม่ในบอลลูนเดียวกัน
+  const rawBlocks = (panelLayoutOn
+    ? overlay.map((t) => sanitizeText(String(t ?? '').replace(/\s*\|\s*/g, '\n')))
+    : overlay
+        .flatMap((t) => String(t ?? '').split(/\r?\n+/))
+        .map((t) => { const s = splitEmoji(t); stickers.push(...s.emoji); return sanitizeText(s.text); })
+  ).filter(Boolean);
 
   // v3.2: เมื่อ WF2 ส่งมาก้อนเดียว มันจะตั้ง maxOverlayBlocks = 1 ด้วย
   // ถ้าเชื่อค่านั้นตรงๆ จะเหลือกล่องเดียวทั้งที่แตกได้หลายบรรทัด
@@ -725,15 +759,27 @@ function buildHtml(payload) {
     /* v3.5: การจัดข้อความมาจากชีต 18 คอลัมน์ Headline Alignment */
     text-align:${isBrandSplit ? 'left' : 'center'};
   }${isBrandSplit ? `
-  /* v8.8: พาดหัว 2 บรรทัด 2 สี — บรรทัดล่างเยื้องขวาให้ขอบไม่ตรงกัน */
+  /* v9.0: พาดหัว 2 บรรทัด — บนใหญ่กว่าล่าง ตัวเกือบล้นกรอบ มีขอบตัวสีเดียวกับพื้น */
   .hl2 {
     display:inline-block; white-space:nowrap;
-    padding:0.16em 0.58em; line-height:1.22;
+    padding:0.10em 0.44em; line-height:1.16;
     border-radius:14px;
     box-shadow:0 6px 18px rgba(0,0,0,.18);
+    paint-order:stroke fill;
   }
-  .hl2-a { background:${accent}; color:#FFFFFF; }
-  .hl2-b { background:#FFFFFF; color:#111111; margin-left:7%; }` : ''}
+  .hl2-a {
+    background:${accent}; color:#FFFFFF;
+    font-size:1.00em;
+    -webkit-text-stroke:0.14em ${accent};
+    transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
+  }
+  .hl2-b {
+    background:#FFFFFF; color:#111111;
+    font-size:0.86em;
+    -webkit-text-stroke:0.14em #FFFFFF;
+    margin-left:5%;
+    transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
+  }` : ''}
   /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
      ทำให้ลูปย่อฟอนต์ไม่เคยหมุน (ต้นเหตุตัวหนังสือล้นตั้งแต่ v3.1) */
   .banner-inner { display:inline-block; ${bStyle.extra} }
@@ -773,16 +819,16 @@ function buildHtml(payload) {
     ${(hasBorder && !hugLines) ? `border:${bubbleBorder};` : ''}
     ${backdrop}
     ${bubbleTextShadow}
-    font-family:'${fontBody}',sans-serif;
-    font-weight:${isParagraphLayout ? 400 : 500};
+    font-family:'${fontBody}'${panelLayoutOn ? ",'Noto Color Emoji'" : ''},sans-serif;
+    font-weight:${isParagraphLayout ? 400 : (panelLayoutOn ? 800 : 500)};
     font-size:${bubbleFontPx}px;
     line-height:1.34;
     letter-spacing:0.005em;
-    padding:${hugLines ? '0' : (isParagraphLayout ? '0.40em 0.60em' : '0.52em 0.9em')};
-    border-radius:${bubbleRadius}px;
+    padding:${hugLines ? '0' : (isParagraphLayout ? '0.40em 0.60em' : (panelLayoutOn ? '0.44em 0.86em' : '0.52em 0.9em'))};
+    border-radius:${panelLayoutOn ? 30 : bubbleRadius}px;
     box-shadow:${(isTransparent || hugLines) ? 'none' : bubbleShadow};
     max-width:${emphasiseProduct ? Math.round(parseFloat(pattern.maxWidth) * 0.85) + '%' : pattern.maxWidth};
-    white-space:${isParagraphLayout ? 'pre-line' : 'nowrap'};
+    white-space:${(isParagraphLayout || panelLayoutOn) ? 'pre-line' : 'nowrap'};
     ${isParagraphLayout ? `text-align:center; line-height:${hugLines ? '1.52' : '1.5'};` : ''}
   }
   /* v7.7: พารากราฟ — พื้นหลังหุ้มตามความยาวของแต่ละบรรทัด */
