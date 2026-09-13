@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.3';
+const BUILD = 'v9.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -442,11 +442,11 @@ function buildHtml(payload) {
     },
     'brand-split-inv': {
       aBg: '#FFFFFF', aFg: '#111111', bBg: brandColor || '#B3000F', bFg: '#FFFFFF',
-      bSize: 0.92, bShift: 5, stroke: true,
+      bSize: 1.00, bShift: 5, stroke: true,
     },
     'product-split': {
       aBg: '#111111', aFg: '#FFFFFF', bBg: brandColor || '#111111', bFg: '#FFFFFF',
-      bSize: 0.88, bShift: 2, stroke: false,
+      bSize: 1.00, bShift: 2, stroke: false,
     },
   };
   const splitStyle = SPLIT_STYLES[headlineMode] || null;
