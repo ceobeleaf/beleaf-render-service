@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.2';
+const BUILD = 'v9.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -403,14 +403,17 @@ function buildHtml(payload) {
   const hlTiltDeg = panelLayoutOn ? jitter(jSeed + '|r', 1.5) : 0;
   const hlTopPct = panelLayoutOn ? 4.2 + jitter(jSeed + '|y', 0.8) : 4.2;
   // v9.2: พาดหัว 2 บรรทัดของภาพแรกต้องใหญ่กว่าภาพอื่นราว 1.3 เท่า วัดจากภาพต้นแบบ
+  // v9.3: พาดหัว 2 บรรทัดมี 3 โหมด — หมวด 1 ใช้ brand-split / หมวดคละสินค้าใช้ 2 ตัวใหม่
+  const hlModeEarly = str(rd.headlineMode).toLowerCase();
   const splitLikely = panelLayoutOn
-    && str(rd.headlineMode).toLowerCase() === 'brand-split'
+    && ['brand-split', 'brand-split-inv', 'product-split'].indexOf(hlModeEarly) >= 0
     && str(payload.headline).indexOf('||') >= 0;
+  const splitBig = splitLikely && hlModeEarly !== 'product-split';
 
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? 1.42 : 0.92) : 1));
+  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.42 : 1.15) : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(H * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -431,14 +434,30 @@ function buildHtml(payload) {
   const headlineMode = str(rd.headlineMode).toLowerCase();
   const brandColor = str(rd.brandColor, '');
   const rawHeadlineIn = str(payload.headline);
-  const isBrandSplit = headlineMode === 'brand-split' && rawHeadlineIn.indexOf('||') >= 0;
+  // v9.3: แต่ละโหมดกำหนดสีพื้น/สีตัว/ขนาดบรรทัดล่าง/ขอบตัวอักษร ของตัวเอง
+  const SPLIT_STYLES = {
+    'brand-split': {
+      aBg: brandColor || accent, aFg: '#FFFFFF', bBg: '#FFFFFF', bFg: '#111111',
+      bSize: 0.76, bShift: 5, stroke: true,
+    },
+    'brand-split-inv': {
+      aBg: '#FFFFFF', aFg: '#111111', bBg: brandColor || '#B3000F', bFg: '#FFFFFF',
+      bSize: 0.92, bShift: 5, stroke: true,
+    },
+    'product-split': {
+      aBg: '#111111', aFg: '#FFFFFF', bBg: brandColor || '#111111', bFg: '#FFFFFF',
+      bSize: 0.88, bShift: 2, stroke: false,
+    },
+  };
+  const splitStyle = SPLIT_STYLES[headlineMode] || null;
+  const isBrandSplit = Boolean(splitStyle) && rawHeadlineIn.indexOf('||') >= 0;
   if (headlineMode === 'white-on-black') {
     accent = '#111111';
     headlineColor = '#FFFFFF';
   }
   if (isBrandSplit) {
-    accent = brandColor || accent;
-    headlineColor = '#FFFFFF';
+    accent = splitStyle.aBg;
+    headlineColor = splitStyle.aFg;
   }
 
   const bannerShapeRaw = str(banner.shape, '');
@@ -774,16 +793,16 @@ function buildHtml(payload) {
     paint-order:stroke fill;
   }
   .hl2-a {
-    background:${accent}; color:#FFFFFF;
+    background:${splitStyle.aBg}; color:${splitStyle.aFg};
     font-size:1.00em;
-    -webkit-text-stroke:0.14em ${accent};
+    ${splitStyle.stroke ? `-webkit-text-stroke:0.14em ${splitStyle.aBg};` : ''}
     transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
   }
   .hl2-b {
-    background:#FFFFFF; color:#111111;
-    font-size:0.76em;
-    -webkit-text-stroke:0.14em #FFFFFF;
-    margin-left:5%;
+    background:${splitStyle.bBg}; color:${splitStyle.bFg};
+    font-size:${splitStyle.bSize}em;
+    ${splitStyle.stroke ? `-webkit-text-stroke:0.14em ${splitStyle.bBg};` : ''}
+    margin-left:${splitStyle.bShift}%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
   }` : ''}
   /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
