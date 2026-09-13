@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.2';
+const BUILD = 'v10.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -679,6 +679,10 @@ function buildHtml(payload) {
   // v6.2: ใช้บทบาทของภาพเป็นตัวตัดสิน ไม่ใช่จับคำในแต่ละก้อน
   //   ของเดิมจับคำแล้วพัง เพราะ "แต่งหน้าก็ไม่ช่วย" มีคำว่า ช่วย จึงได้ติ๊กถูกทั้งที่เป็นประโยคลบ
   //   บทบาทมาจาก renderDirectives.panelRole ซึ่ง WF2 ส่งมาให้อยู่แล้ว
+  // v10.3: สีแถบหัวข้อบอลลูนต้องมาจากสีสินค้าโดยตรง
+  //   ของเดิมใช้ตัวแปรเดียวกับพาดหัว พอพาดหัวเป็นโหมดตัวขลิบขาว (พื้นโปร่ง)
+  //   แถบหัวข้อจึงกลายเป็นโปร่งไปด้วย ตัวหนังสือขาวลอยบนรูปจนอ่านไม่ออก
+  const sectionColor = str(rd.brandColor, '') || '#E0201B';
   const bubblePrefix = str(rd.bubblePrefix, '');
   const panelRole = str(rd.panelRole).toLowerCase();
   const NEGATIVE_ROLES = ['hook', 'problem', 'overview', 'story'];
@@ -869,6 +873,16 @@ function buildHtml(payload) {
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     margin-left:${splitStyle.bShift}%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
+    position:relative;
+  }
+  /* v10.3: ขีดเส้นใต้แดงใต้บรรทัดล่าง ตามภาพต้นแบบ */
+  .hl2-b::after {
+    content:''; position:absolute;
+    left:6%; right:6%; bottom:0.02em; height:0.09em;
+    background:${splitStyle.aFg};
+    border-radius:0.06em;
+    -webkit-text-stroke:0;
+    box-shadow:0 0 0 0.035em #FFFFFF;
   }
   ` : `
   .hl2-a {
@@ -919,23 +933,23 @@ function buildHtml(payload) {
   .colwrap {
     position:absolute; width:${pattern.maxWidth};
     display:flex; flex-direction:column; align-items:flex-start;
-    gap:${Math.round(bubbleFontPx * 0.62)}px; z-index:4;
+    gap:${Math.round(bubbleFontPx * 0.52)}px; z-index:4;
   }
   .sect { display:flex; flex-direction:column; align-items:flex-start; width:100%; }
   .sect-h {
-    display:inline-block; background:${accent}; color:#FFFFFF;
+    display:inline-block; background:${sectionColor}; color:#FFFFFF;
     font-family:'${fontHeadline}',sans-serif; font-weight:800;
-    font-size:${Math.round(bubbleFontPx * 1.06)}px;
-    padding:0.14em 0.52em; line-height:1.28;
-    box-shadow:0 4px 12px rgba(0,0,0,.20);
+    font-size:${Math.round(bubbleFontPx * 1.10)}px;
+    padding:0.16em 0.60em; line-height:1.30;
+    box-shadow:0 5px 14px rgba(0,0,0,.28);
   }
   .sect-b {
     display:inline-block; background:#FFFFFF; color:#111111;
-    font-family:'${fontBody}',sans-serif; font-weight:600;
-    font-size:${bubbleFontPx}px;
-    padding:0.42em 0.70em; line-height:1.62;
+    font-family:'${fontBody}',sans-serif; font-weight:700;
+    font-size:${Math.round(bubbleFontPx * 1.06)}px;
+    padding:0.46em 0.78em; line-height:1.66;
     white-space:pre-line; text-align:left;
-    box-shadow:0 4px 12px rgba(0,0,0,.16);
+    box-shadow:0 5px 14px rgba(0,0,0,.22);
   }` : ''}
   .bubble-bottom { top:auto; }
   .bubble > span { display:inline-block; }
