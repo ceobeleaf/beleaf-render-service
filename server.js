@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.1';
+const BUILD = 'v10.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -391,6 +391,15 @@ function jitter(seed, spread) {
   return Math.round((((h % 2001) / 1000) - 1) * spread * 100) / 100;
 }
 
+// v10.2: ตารางสัดส่วนต้องอยู่ระดับบนสุด เพราะ viewport ของเบราว์เซอร์ก็ต้องใช้
+//   ของเดิมตรึง viewport ไว้ 1080x1080 ภาพจึงออกมาจัตุรัสเสมอ แม้ HTML จะสูง 1350
+const ASPECT_H = { '1:1': 1080, '4:5': 1350, '3:4': 1440, '9:16': 1920 };
+function canvasHeight(payload) {
+  const d = (payload && payload.renderDirectives) || {};
+  const key = String(d.aspectRatio == null ? '' : d.aspectRatio).trim() || '1:1';
+  return ASPECT_H[key] || 1080;
+}
+
 function buildHtml(payload) {
   const dt = payload?.design?.designTemplate || {};
   const banner = dt.banner || {};
@@ -400,11 +409,8 @@ function buildHtml(payload) {
   const decoration = Array.isArray(dt.decoration) ? dt.decoration : [];
 
   const W = 1080;
-  // v10.0: เลิกตรึงจัตุรัส — รับสัดส่วนจากชีต เช่น 4:5 ได้ 1080x1350
-  //   ไม่ส่งค่ามา = 1:1 เท่าเดิม เพจอื่นจึงไม่ขยับแม้แต่พิกเซลเดียว
-  const ASPECTS = { '1:1': 1080, '4:5': 1350, '3:4': 1440, '9:16': 1920 };
-  const aspectKey = str(rd.aspectRatio, '1:1');
-  const H = ASPECTS[aspectKey] || 1080;
+  // v10.0/v10.2: สัดส่วนภาพจากชีต — ใช้ค่าเดียวกับ viewport ของเบราว์เซอร์
+  const H = canvasHeight(payload);
   // ขนาดตัวอักษรยึดด้านสั้นเสมอ ไม่งั้นภาพ 4:5 ตัวหนังสือจะพองขึ้น 25%
   const S = Math.min(W, H);
 
@@ -574,7 +580,11 @@ function buildHtml(payload) {
   //   ชีต 66 ช่อง Slot Pattern ผูกกับ layout รายเพจโดยตรง
   //   ชีต 19 ผูกกับรหัสบับเบิล ซึ่งหลายเพจใช้ร่วมกัน ตั้งที่นั่นจะกระทบเพจอื่น
   const layoutSlot = str(rd.slotPattern);
-  const requested = useParagraph
+  // v10.2: ถ้าชีตสั่งผังคอลัมน์มา ต้องใช้ผังนั้นเสมอ แม้เนื้อหาจะเข้าเงื่อนไขพารากราฟ
+  //   ของเดิมเช็ค useParagraph ก่อน จึงไม่เคยมองเห็น slotPattern เลย
+  const slotKeyLower = layoutSlot.toLowerCase();
+  const slotIsColumn = Boolean(PATTERNS[slotKeyLower]) && PATTERNS[slotKeyLower].kind === 'column';
+  const requested = slotIsColumn ? layoutSlot : useParagraph
     ? (layoutPara || str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN))
     : (layoutSlot || str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN));
 
@@ -1157,7 +1167,7 @@ app.post('/render', async (req, res) => {
 
     const browser = await getBrowser();
     const page = await browser.newPage({
-      viewport: { width: 1080, height: 1080 }, deviceScaleFactor: 1,
+      viewport: { width: 1080, height: canvasHeight(body) }, deviceScaleFactor: 1,
     });
     await page.setContent(buildHtml(body), { waitUntil: 'networkidle', timeout: 60000 });
     try { await page.evaluate(() => document.fonts.ready); } catch (_) {}
