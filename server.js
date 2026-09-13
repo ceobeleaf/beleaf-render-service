@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.4';
+const BUILD = 'v9.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -399,7 +399,6 @@ function buildHtml(payload) {
   const seqNo = num(payload.imageSequence, num(payload && payload.panel && payload.panel.sequence, 1));
   const jSeed = str(dt.pageId || dt.designId || '') + '|' + seqNo;
   const hlScale = panelLayoutOn ? 1 + jitter(jSeed + '|s', 0.06) / 1 : 1;
-  const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', 4) : 0;
   const hlTiltDeg = panelLayoutOn ? jitter(jSeed + '|r', 1.5) : 0;
   const hlTopPct = panelLayoutOn ? 4.2 + jitter(jSeed + '|y', 0.8) : 4.2;
   // v9.2: พาดหัว 2 บรรทัดของภาพแรกต้องใหญ่กว่าภาพอื่นราว 1.3 เท่า วัดจากภาพต้นแบบ
@@ -409,6 +408,9 @@ function buildHtml(payload) {
     && ['brand-split', 'brand-split-inv', 'product-split'].indexOf(hlModeEarly) >= 0
     && str(payload.headline).indexOf('||') >= 0;
   const splitBig = splitLikely && hlModeEarly !== 'product-split';
+  // v9.5: พาดหัว 2 บรรทัดกินความกว้างเกือบเต็มภาพ เยื้อง 4% จะเห็นชัดว่าไม่กึ่งกลาง
+  //   จึงลดเหลือ 1% เฉพาะโหมดนี้ ส่วนขนาด องศา และระยะบน ยังเยื้องเท่าเดิม
+  const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', splitLikely ? 1 : 4) : 0;
 
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
@@ -442,7 +444,7 @@ function buildHtml(payload) {
     },
     'brand-split-inv': {
       aBg: '#FFFFFF', aFg: '#111111', bBg: brandColor || '#B3000F', bFg: '#FFFFFF',
-      bSize: 1.00, bShift: 5, stroke: true,
+      bSize: 1.00, bShift: 3, stroke: true,
     },
     'product-split': {
       aBg: '#111111', aFg: '#FFFFFF', bBg: brandColor || '#111111', bFg: '#FFFFFF',
@@ -582,8 +584,10 @@ function buildHtml(payload) {
     isParagraphLayout ? 1 : (wasSingleParagraph ? rawBlocks.length : configuredMax),
     pattern.slots.length
   );
+  // v9.5: ไม่มีข้อความ = ไม่ต้องวาดกล่อง
+  //   ของเดิม [rawBlocks.join()] ได้ [''] เสมอ จึงวาดกล่องขาวเปล่าค้างไว้ในภาพ
   const blocks = isParagraphLayout
-    ? [rawBlocks.join('\n')]
+    ? (rawBlocks.length ? [rawBlocks.join('\n')] : [])
     : rawBlocks.slice(0, maxBlocks);
 
   // ---- กล่องข้อความ: รองรับ rgba / gradient / transparent / เส้นขอบ / ทรง pill ----
