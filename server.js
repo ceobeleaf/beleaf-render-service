@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v9.5';
+const BUILD = 'v10.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -391,7 +391,13 @@ function buildHtml(payload) {
   const decoration = Array.isArray(dt.decoration) ? dt.decoration : [];
 
   const W = 1080;
-  const H = 1080;
+  // v10.0: เลิกตรึงจัตุรัส — รับสัดส่วนจากชีต เช่น 4:5 ได้ 1080x1350
+  //   ไม่ส่งค่ามา = 1:1 เท่าเดิม เพจอื่นจึงไม่ขยับแม้แต่พิกเซลเดียว
+  const ASPECTS = { '1:1': 1080, '4:5': 1350, '3:4': 1440, '9:16': 1920 };
+  const aspectKey = str(rd.aspectRatio, '1:1');
+  const H = ASPECTS[aspectKey] || 1080;
+  // ขนาดตัวอักษรยึดด้านสั้นเสมอ ไม่งั้นภาพ 4:5 ตัวหนังสือจะพองขึ้น 25%
+  const S = Math.min(W, H);
 
   // v8.9/v9.0: เพจที่ใช้ระบบผังรายภาพ — ปิดสติกเกอร์ ป้ายทรงมน และมีความไม่เป๊ะรายภาพ
   const panelLayoutOn = Boolean(str(rd.panelLayoutSource));
@@ -415,9 +421,9 @@ function buildHtml(payload) {
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(H * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.42 : 1.15) : 0.92) : 1));
+  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.42 : 1.15) : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
-  const bubblePx = Math.round(H * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
+  const bubblePx = Math.round(S * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
   const palette = banner.palette || {};
   const accentKey = str(banner.defaultAccentKey, 'urgency');
@@ -491,7 +497,7 @@ function buildHtml(payload) {
        transform:translateX(-50%) rotate(${hlTiltDeg}deg);
        display:flex; align-items:center; justify-content:center;`
     : `top:4.2%; left:50%; transform:translateX(-50%);
-    ${isTag ? '' : `min-height:${Math.round(H * bannerHeightPct / 100)}px;`}
+    ${isTag ? '' : `min-height:${Math.round(S * bannerHeightPct / 100)}px;`}
     display:flex; align-items:center; justify-content:center;`;
 
   const bStyleSheet = bannerStyle({
@@ -576,7 +582,7 @@ function buildHtml(payload) {
   const fontRatio = pattern.kind === 'paragraph'
     ? paragraphFont(paraLineCount) * paraScale
     : num(pattern.font, sc.bubble);
-  const bubbleFontPx = Math.round(H * fontRatio * (emphasiseProduct ? 0.92 : 1));
+  const bubbleFontPx = Math.round(S * fontRatio * (emphasiseProduct ? 0.92 : 1));
 
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
@@ -1015,7 +1021,7 @@ function buildHtml(payload) {
 
     var ratio = ${(parseFloat(pattern.maxWidth) / 100).toFixed(3)};
     document.querySelectorAll('.bubble').forEach(function (b) {
-      if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(H * 0.92)});
+      if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(S * 0.92)});
       else fitBubble(b, ratio);
     });
 
