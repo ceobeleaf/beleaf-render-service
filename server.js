@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.0';
+const BUILD = 'v10.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -180,6 +180,15 @@ const PATTERNS = {
       { top: '62%', left: '2%' }, { top: '79%', right: '9%' },
       { top: '50%', left: '28%' }, { top: '88%', left: '12%' },
     ],
+  },
+  // v10.1: ผังคอลัมน์ไหล — ใช้กับบอลลูนแบบหัวข้อ+รายการ ที่ความสูงไม่เท่ากัน
+  'left-col': {
+    kind: 'column', maxWidth: '48%', font: 0.030,
+    slots: [{ top: '25%', left: '4.5%' }],
+  },
+  'right-col': {
+    kind: 'column', maxWidth: '48%', font: 0.030,
+    slots: [{ top: '25%', right: '4.5%' }],
   },
   // v8.8: ผังรายภาพสำหรับระบบ Panel Layout (ชีต 78) — ระยะขอบเท่ากันทุกช่อง
   //   ของเดิม left-stack/right-stack สลับระยะขอบ 4/9/13/8% ให้ดูเป็นมือคน
@@ -411,9 +420,9 @@ function buildHtml(payload) {
   // v9.3: พาดหัว 2 บรรทัดมี 3 โหมด — หมวด 1 ใช้ brand-split / หมวดคละสินค้าใช้ 2 ตัวใหม่
   const hlModeEarly = str(rd.headlineMode).toLowerCase();
   const splitLikely = panelLayoutOn
-    && ['brand-split', 'brand-split-inv', 'product-split'].indexOf(hlModeEarly) >= 0
+    && ['brand-split', 'brand-split-inv', 'product-split', 'outline-split'].indexOf(hlModeEarly) >= 0
     && str(payload.headline).indexOf('||') >= 0;
-  const splitBig = splitLikely && hlModeEarly !== 'product-split';
+  const splitBig = splitLikely && ['product-split'].indexOf(hlModeEarly) < 0;
   // v9.5: พาดหัว 2 บรรทัดกินความกว้างเกือบเต็มภาพ เยื้อง 4% จะเห็นชัดว่าไม่กึ่งกลาง
   //   จึงลดเหลือ 1% เฉพาะโหมดนี้ ส่วนขนาด องศา และระยะบน ยังเยื้องเท่าเดิม
   const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', splitLikely ? 1 : 4) : 0;
@@ -455,6 +464,11 @@ function buildHtml(payload) {
     'product-split': {
       aBg: '#111111', aFg: '#FFFFFF', bBg: brandColor || '#111111', bFg: '#FFFFFF',
       bSize: 1.00, bShift: 2, stroke: false,
+    },
+    // v10.1: ตัวอักษรขลิบขาวลอยบนรูป ไม่มีกล่องพื้นหลัง
+    'outline-split': {
+      aBg: 'transparent', aFg: brandColor || '#E0201B', bBg: 'transparent', bFg: '#111111',
+      bSize: 0.90, bShift: 2, stroke: false, outline: true,
     },
   };
   const splitStyle = SPLIT_STYLES[headlineMode] || null;
@@ -567,11 +581,14 @@ function buildHtml(payload) {
   // กันไว้อีกชั้น เผื่อชีตกรอกผิดตระกูล
   let patternKey = requested.toLowerCase();
   if (!PATTERNS[patternKey]) patternKey = useParagraph ? DEFAULT_PARAGRAPH_PATTERN : DEFAULT_PATTERN;
-  if (useParagraph && PATTERNS[patternKey].kind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
-  if (!useParagraph && PATTERNS[patternKey].kind === 'paragraph') patternKey = DEFAULT_PATTERN;
+  // v10.1: ผังคอลัมน์เป็นตระกูลของตัวเอง ห้ามโดนสลับไปเป็นพารากราฟหรือช่องตายตัว
+  const isColumnPattern = PATTERNS[patternKey].kind === 'column';
+  if (!isColumnPattern && useParagraph && PATTERNS[patternKey].kind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
+  if (!isColumnPattern && !useParagraph && PATTERNS[patternKey].kind === 'paragraph') patternKey = DEFAULT_PATTERN;
 
   const pattern = PATTERNS[patternKey];
   const isParagraphLayout = pattern.kind === 'paragraph';
+  const isColumn = pattern.kind === 'column';
   // v4.1: ขนาดตัวอักษรในกล่องมาจากผัง ถ้าเน้นสินค้าค่อยหรี่ลงอีก 8%
   const paraLineCount = pattern.kind === 'paragraph' ? Math.max(1, rawBlocks.length) : 0;
   // v5.0: พารากราฟก็ฟังค่า Font Scale ด้วย เดิมใช้เฉพาะแบบหลายก้อน
@@ -586,10 +603,12 @@ function buildHtml(payload) {
 
   const configuredMax = num(rd.maxOverlayBlocks, num(bubble.maxCount, 4));
   const wasSingleParagraph = overlay.length === 1 && rawBlocks.length > 1;
-  const maxBlocks = Math.min(
-    isParagraphLayout ? 1 : (wasSingleParagraph ? rawBlocks.length : configuredMax),
-    pattern.slots.length
-  );
+  const maxBlocks = isColumn
+    ? Math.max(1, configuredMax)
+    : Math.min(
+      isParagraphLayout ? 1 : (wasSingleParagraph ? rawBlocks.length : configuredMax),
+      pattern.slots.length
+    );
   // v9.5: ไม่มีข้อความ = ไม่ต้องวาดกล่อง
   //   ของเดิม [rawBlocks.join()] ได้ [''] เสมอ จึงวาดกล่องขาวเปล่าค้างไว้ในภาพ
   const blocks = isParagraphLayout
@@ -678,16 +697,38 @@ function buildHtml(payload) {
     if (WORSE.test(x)) return '\u2757 ';
     return '';
   };
-  const bubbleHtml = blocks.map((t, i) => {
-    const slot = slotOrder[i];
-    const pos = slot.centerX ? 'left:50%; transform:translateX(-50%);' : (slot.left ? `left:${slot.left};` : `right:${slot.right};`);
-    // v6.1: ถ้าผังบอกระยะจากขอบล่าง ให้เกาะขอบล่างจริง จะได้ชิดขอบเหมือนพาดหัวชิดขอบบน
-    const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
-    const anchorClass = slot.bottom ? ' bubble-bottom' : '';
-    // v8.8: อีโมจินำหน้าบอลลูนจากชีต 78 คอลัมน์ Bubble Prefix (เว้นว่าง = ไม่ใส่)
-    const label = tickTone ? roleMark + t : (bubblePrefix ? bubblePrefix + ' ' + t : t);
-    return `<div class="bubble${anchorClass}" style="${vert}${pos}"><span>${esc(label)}</span></div>`;
-  }).join('\n');
+  // v10.1: บอลลูนแบบหัวข้อ+รายการ — WF2 ส่งมาเป็น "หัวข้อ :: ข้อ1 | ข้อ2"
+  const sectionOf = (t) => {
+    const raw = String(t == null ? '' : t);
+    const i = raw.indexOf('::');
+    if (i < 0) return null;
+    const head = raw.slice(0, i).replace(/\n/g, ' ').trim();
+    const body = raw.slice(i + 2).split('\n').map((x) => x.trim()).filter(Boolean);
+    if (!head || !body.length) return null;
+    return { head, body };
+  };
+
+  const bubbleHtml = isColumn
+    ? (() => {
+      const slot = pattern.slots[0];
+      const pos = slot.left ? `left:${slot.left};` : `right:${slot.right};`;
+      const inner = blocks.map((t) => {
+        const sec = sectionOf(t);
+        if (!sec) return `<div class="sect"><span class="sect-b">${esc(String(t))}</span></div>`;
+        const lines = sec.body.map((b) => '\u25CF  ' + b).join('\n');
+        return `<div class="sect"><span class="sect-h">${esc(sec.head)}</span>`
+          + `<span class="sect-b">${esc(lines)}</span></div>`;
+      }).join('');
+      return blocks.length ? `<div class="colwrap" style="top:${slot.top};${pos}">${inner}</div>` : '';
+    })()
+    : blocks.map((t, i) => {
+      const slot = slotOrder[i];
+      const pos = slot.centerX ? 'left:50%; transform:translateX(-50%);' : (slot.left ? `left:${slot.left};` : `right:${slot.right};`);
+      const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
+      const anchorClass = slot.bottom ? ' bubble-bottom' : '';
+      const label = tickTone ? roleMark + t : (bubblePrefix ? bubblePrefix + ' ' + t : t);
+      return `<div class="bubble${anchorClass}" style="${vert}${pos}"><span>${esc(label)}</span></div>`;
+    }).join('\n');
 
   // v4.5: ตำแหน่งสติกเกอร์แยกรายเพจ แต่ยึดกับป้ายพาดหัวเสมอ
   // ลำดับความสำคัญ: ค่าที่กรอกในชีต -> คำนวณจาก Page ID -> มุมซ้ายบน
@@ -802,6 +843,24 @@ function buildHtml(payload) {
     box-shadow:0 6px 18px rgba(0,0,0,.18);
     paint-order:stroke fill;
   }
+  ${splitStyle.outline ? `
+  .hl2 { padding:0.02em 0.10em; box-shadow:none; border-radius:0; }
+  .hl2-a {
+    background:transparent; color:${splitStyle.aFg};
+    font-size:1.00em;
+    -webkit-text-stroke:0.17em #FFFFFF;
+    filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
+    transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
+  }
+  .hl2-b {
+    background:transparent; color:${splitStyle.bFg};
+    font-size:${splitStyle.bSize}em;
+    -webkit-text-stroke:0.17em #FFFFFF;
+    filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
+    margin-left:${splitStyle.bShift}%;
+    transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
+  }
+  ` : `
   .hl2-a {
     background:${splitStyle.aBg}; color:${splitStyle.aFg};
     font-size:1.00em;
@@ -814,7 +873,8 @@ function buildHtml(payload) {
     ${splitStyle.stroke ? `-webkit-text-stroke:0.14em ${splitStyle.bBg};` : ''}
     margin-left:${splitStyle.bShift}%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
-  }` : ''}
+  }
+  `}` : ''}
   /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
      ทำให้ลูปย่อฟอนต์ไม่เคยหมุน (ต้นเหตุตัวหนังสือล้นตั้งแต่ v3.1) */
   .banner-inner { display:inline-block; ${bStyle.extra} }
@@ -844,7 +904,29 @@ function buildHtml(payload) {
   }
   .sticker-left  { top:0.8%; left:2%; }
   .sticker-right { top:2.4%; right:6%; transform:rotate(8deg); }
-  .sticker-third { top:4%; left:8%; transform:rotate(-6deg); }
+  .sticker-third { top:4%; left:8%; transform:rotate(-6deg); }${isColumn ? `
+  /* v10.1: คอลัมน์ไหล — บอลลูนเรียงต่อกันเอง ความสูงไม่เท่ากันก็ไม่ชนกัน */
+  .colwrap {
+    position:absolute; width:${pattern.maxWidth};
+    display:flex; flex-direction:column; align-items:flex-start;
+    gap:${Math.round(bubbleFontPx * 0.62)}px; z-index:4;
+  }
+  .sect { display:flex; flex-direction:column; align-items:flex-start; width:100%; }
+  .sect-h {
+    display:inline-block; background:${accent}; color:#FFFFFF;
+    font-family:'${fontHeadline}',sans-serif; font-weight:800;
+    font-size:${Math.round(bubbleFontPx * 1.06)}px;
+    padding:0.14em 0.52em; line-height:1.28;
+    box-shadow:0 4px 12px rgba(0,0,0,.20);
+  }
+  .sect-b {
+    display:inline-block; background:#FFFFFF; color:#111111;
+    font-family:'${fontBody}',sans-serif; font-weight:600;
+    font-size:${bubbleFontPx}px;
+    padding:0.42em 0.70em; line-height:1.62;
+    white-space:pre-line; text-align:left;
+    box-shadow:0 4px 12px rgba(0,0,0,.16);
+  }` : ''}
   .bubble-bottom { top:auto; }
   .bubble > span { display:inline-block; }
   .bubble {
