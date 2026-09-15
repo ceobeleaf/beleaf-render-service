@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.4';
+const BUILD = 'v10.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,7 +183,7 @@ const PATTERNS = {
   },
   // v10.1: ผังคอลัมน์ไหล — ใช้กับบอลลูนแบบหัวข้อ+รายการ ที่ความสูงไม่เท่ากัน
   'left-col': {
-    kind: 'column', maxWidth: '48%', font: 0.026,
+    kind: 'column', maxWidth: '50%', font: 0.026,
     slots: [{ top: '25%', left: '4.5%' }],
   },
   'right-col': {
@@ -436,7 +436,7 @@ function buildHtml(payload) {
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.42 : 1.15) : 0.92) : 1));
+  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.52 : 1.15) : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(S * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -862,28 +862,32 @@ function buildHtml(payload) {
   .hl2-a {
     background:transparent; color:${splitStyle.aFg};
     font-size:1.00em;
-    -webkit-text-stroke:0.17em #FFFFFF;
+    -webkit-text-stroke:0.23em #FFFFFF;
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
   }
   .hl2-b {
     background:transparent; color:${splitStyle.bFg};
     font-size:${splitStyle.bSize}em;
-    -webkit-text-stroke:0.17em #FFFFFF;
+    -webkit-text-stroke:0.23em #FFFFFF;
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     margin-left:${splitStyle.bShift}%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
-    position:relative;
+    /* v10.5: ขีดเส้นใต้แดงย้ายมาเป็นพื้นหลัง เพื่อปล่อย ::before/::after ไปทำขีดข้าง */
+    background-image:linear-gradient(${splitStyle.aFg}, ${splitStyle.aFg});
+    background-repeat:no-repeat;
+    background-size:82% 0.085em;
+    background-position:9% 94%;
   }
-  /* v10.3: ขีดเส้นใต้แดงใต้บรรทัดล่าง ตามภาพต้นแบบ */
-  .hl2-b::after {
-    content:''; position:absolute;
-    left:6%; right:6%; bottom:0.02em; height:0.09em;
-    background:${splitStyle.aFg};
-    border-radius:0.06em;
-    -webkit-text-stroke:0;
-    box-shadow:0 0 0 0.035em #FFFFFF;
+  /* v10.5: ขีดแดงสองข้างบรรทัดล่าง ตามภาพต้นแบบ */
+  .hl2-b::before, .hl2-b::after {
+    color:${splitStyle.aFg};
+    -webkit-text-stroke:0.10em #FFFFFF;
+    font-size:0.82em;
+    vertical-align:0.06em;
   }
+  .hl2-b::before { content:'///'; margin-right:0.18em; }
+  .hl2-b::after  { content:'///'; margin-left:0.18em; }
   ` : `
   .hl2-a {
     background:${splitStyle.aBg}; color:${splitStyle.aFg};
@@ -940,16 +944,18 @@ function buildHtml(payload) {
   .sect-h {
     display:inline-block; background:${sectionColor}; color:#FFFFFF;
     font-family:'${fontHeadline}',sans-serif; font-weight:800;
-    font-size:1.10em;
-    padding:0.16em 0.60em; line-height:1.30;
-    box-shadow:0 5px 14px rgba(0,0,0,.28);
+    font-size:1.46em;
+    padding:0.10em 0.44em; line-height:1.26;
+    border:0.055em solid #111111;
+    box-shadow:0 5px 14px rgba(0,0,0,.30);
   }
   .sect-b {
     display:inline-block; background:#FFFFFF; color:#111111;
     font-family:'${fontBody}',sans-serif; font-weight:700;
     font-size:1.06em;
-    padding:0.46em 0.78em; line-height:1.66;
+    padding:0.44em 0.80em; line-height:1.58;
     white-space:pre-line; text-align:left;
+    border:0.055em solid #111111;
     box-shadow:0 5px 14px rgba(0,0,0,.22);
   }` : ''}
   .bubble-bottom { top:auto; }
