@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.7';
+const BUILD = 'v11.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -179,6 +179,14 @@ const PATTERNS = {
       { top: '25%', left: '6%' }, { top: '38%', right: '3%' },
       { top: '62%', left: '2%' }, { top: '79%', right: '9%' },
       { top: '50%', left: '28%' }, { top: '88%', left: '12%' },
+    ],
+  },
+  // v11.0: ผังปีก — บอลลูนขนาบซ้าย-ขวาสินค้าตรงกลาง สลับระดับกันไม่ให้ดูเป็นตาราง
+  'wing-5': {
+    kind: 'blocks', maxWidth: '31%', font: 0.030,
+    slots: [
+      { top: '30%', left: '3%' }, { top: '46%', left: '3%' }, { top: '62%', left: '3%' },
+      { top: '34%', right: '3%' }, { top: '52%', right: '3%' }, { top: '70%', right: '3%' },
     ],
   },
   // v10.1: ผังคอลัมน์ไหล — ใช้กับบอลลูนแบบหัวข้อ+รายการ ที่ความสูงไม่เท่ากัน
@@ -444,9 +452,9 @@ function buildHtml(payload) {
   // v9.3: พาดหัว 2 บรรทัดมี 3 โหมด — หมวด 1 ใช้ brand-split / หมวดคละสินค้าใช้ 2 ตัวใหม่
   const hlModeEarly = str(rd.headlineMode).toLowerCase();
   const splitLikely = panelLayoutOn
-    && ['brand-split', 'brand-split-inv', 'product-split', 'outline-split'].indexOf(hlModeEarly) >= 0
+    && ['brand-split', 'brand-split-inv', 'product-split', 'outline-split', 'stack-solid'].indexOf(hlModeEarly) >= 0
     && str(payload.headline).indexOf('||') >= 0;
-  const splitBig = splitLikely && ['product-split'].indexOf(hlModeEarly) < 0;
+  const splitBig = splitLikely && ['product-split', 'stack-solid'].indexOf(hlModeEarly) < 0;
   // v9.5: พาดหัว 2 บรรทัดกินความกว้างเกือบเต็มภาพ เยื้อง 4% จะเห็นชัดว่าไม่กึ่งกลาง
   //   จึงลดเหลือ 1% เฉพาะโหมดนี้ ส่วนขนาด องศา และระยะบน ยังเยื้องเท่าเดิม
   const hlShiftPct = panelLayoutOn ? jitter(jSeed + '|x', splitLikely ? 1 : 4) : 0;
@@ -494,6 +502,11 @@ function buildHtml(payload) {
       aBg: 'transparent', aFg: brandColor || '#E0201B', bBg: 'transparent', bFg: '#111111',
       bSize: 0.90, bShift: 2, stroke: false, outline: true,
     },
+    // v11.0: สองแถบทึบเต็มความกว้าง บรรทัดล่างใหญ่กว่าบรรทัดบน
+    'stack-solid': {
+      aBg: brandColor || '#E0201B', aFg: '#FFFFFF', bBg: '#FFFFFF', bFg: '#111111',
+      bSize: 1.35, bShift: 0, stroke: false, full: true, bBorder: true,
+    },
   };
   const splitStyle = SPLIT_STYLES[headlineMode] || null;
   const isBrandSplit = Boolean(splitStyle) && rawHeadlineIn.indexOf('||') >= 0;
@@ -526,9 +539,11 @@ function buildHtml(payload) {
 
   const placementCss = isBrandSplit
     ? `top:${(hlTopPct + 0.5).toFixed(2)}%; left:50%;
-       margin-left:${Math.round(W * hlShiftPct / 100)}px;
+       margin-left:${Math.round(W * (splitStyle.full ? 0 : hlShiftPct) / 100)}px;
        transform:translateX(-50%);
-       display:flex; flex-direction:column; align-items:center; gap:0.12em;`
+       display:flex; flex-direction:column;
+       align-items:${splitStyle.full ? 'stretch' : 'center'};
+       gap:${splitStyle.full ? '0' : '0.12em'};`
     : panelLayoutOn
     ? `top:${hlTopPct.toFixed(2)}%; left:50%;
        margin-left:${Math.round(W * hlShiftPct / 100)}px;
@@ -548,7 +563,7 @@ function buildHtml(payload) {
   });
   // v8.8: พาดหัว 2 บรรทัดวาดพื้นหลังเองรายบรรทัด กล่องนอกจึงต้องโปร่ง
   const bStyle = isBrandSplit
-    ? { css: 'max-width:97%; padding:0; background:transparent; box-shadow:none;', extra: '' }
+    ? { css: `max-width:${splitStyle.full ? '90%' : '97%'}; width:${splitStyle.full ? '90%' : 'auto'}; padding:0; background:transparent; box-shadow:none;`, extra: '' }
     : panelLayoutOn
     ? { css: `max-width:92%; padding:0.24em 0.66em; border-radius:18px;`
              + ` background:${accent}; color:${headlineColor};`
@@ -617,6 +632,8 @@ function buildHtml(payload) {
   const pattern = PATTERNS[patternKey];
   const isParagraphLayout = pattern.kind === 'paragraph';
   const isColumn = pattern.kind === 'column';
+  // v11.0: ตระกูลผังปีก — บอลลูนเหลี่ยม ขอบดำ จัดกึ่งกลาง และมีบรรทัดรอง
+  const isWing = patternKey.indexOf('wing') === 0;
   // v4.1: ขนาดตัวอักษรในกล่องมาจากผัง ถ้าเน้นสินค้าค่อยหรี่ลงอีก 8%
   const paraLineCount = pattern.kind === 'paragraph' ? Math.max(1, rawBlocks.length) : 0;
   // v5.0: พารากราฟก็ฟังค่า Font Scale ด้วย เดิมใช้เฉพาะแบบหลายก้อน
@@ -740,6 +757,18 @@ function buildHtml(payload) {
     return { head, body };
   };
 
+  // v11.0: แถบปิดท้าย — ดึงก้อนสุดท้ายออกมาเป็นแบนเนอร์เต็มความกว้างล่างสุด
+  const footerMode = str(rd.footerMode).toLowerCase();
+  let footerText = '';
+  let bodyBlocks = blocks;
+  if (footerMode === 'last' && blocks.length > 1) {
+    footerText = str(blocks[blocks.length - 1]).replace(/^[^:]*::\s*/, '').replace(/\n/g, ' ');
+    bodyBlocks = blocks.slice(0, -1);
+  }
+  const footerHtml = footerText
+    ? `<div class="footerbar"><span>${esc(footerText)}</span></div>`
+    : '';
+
   const bubbleHtml = isColumn
     ? (() => {
       const slot = pattern.slots[0];
@@ -753,11 +782,22 @@ function buildHtml(payload) {
       }).join('');
       return blocks.length ? `<div class="colwrap" style="top:${slot.top};${pos}">${inner}</div>` : '';
     })()
-    : blocks.map((t, i) => {
+    : bodyBlocks.map((t, i) => {
       const slot = slotOrder[i];
       const pos = slot.centerX ? 'left:50%; transform:translateX(-50%);' : (slot.left ? `left:${slot.left};` : `right:${slot.right};`);
       const vert = slot.bottom ? `bottom:${slot.bottom};` : `top:${slot.top};`;
       const anchorClass = slot.bottom ? ' bubble-bottom' : '';
+      // v11.0: ผังปีกรองรับ "บรรทัดหลัก :: บรรทัดรอง" ในก้อนเดียว
+      if (isWing) {
+        const raw = String(t == null ? '' : t);
+        const idx = raw.indexOf('::');
+        const main = (idx >= 0 ? raw.slice(0, idx) : raw).trim();
+        const subtext = idx >= 0 ? raw.slice(idx + 2).trim() : '';
+        return `<div class="bubble b2${anchorClass}" style="${vert}${pos}">`
+          + `<span class="b2-m">${esc(main)}</span>`
+          + (subtext ? `<span class="b2-s">${esc(subtext)}</span>` : '')
+          + `</div>`;
+      }
       const label = tickTone ? roleMark + t : (bubblePrefix ? bubblePrefix + ' ' + t : t);
       return `<div class="bubble${anchorClass}" style="${vert}${pos}"><span>${esc(label)}</span></div>`;
     }).join('\n');
@@ -875,7 +915,21 @@ function buildHtml(payload) {
     box-shadow:0 6px 18px rgba(0,0,0,.18);
     paint-order:stroke fill;
   }
-  ${splitStyle.outline ? `
+  ${splitStyle.full ? `
+  /* v11.0: สองแถบทึบเต็มความกว้าง เหลี่ยม ติดกัน บรรทัดล่างใหญ่กว่า */
+  .hl2 {
+    display:block; width:100%; box-sizing:border-box;
+    white-space:normal; text-align:center;
+    padding:0.14em 0.40em; line-height:1.24;
+    border-radius:0; box-shadow:0 6px 16px rgba(0,0,0,.22);
+  }
+  .hl2-a { background:${splitStyle.aBg}; color:${splitStyle.aFg}; font-size:1.00em; }
+  .hl2-b {
+    background:${splitStyle.bBg}; color:${splitStyle.bFg};
+    font-size:${splitStyle.bSize}em;
+    border:0.045em solid #111111;
+  }
+  ` : splitStyle.outline ? `
   .hl2 { padding:0.02em 0.10em; box-shadow:none; border-radius:0; }
   .hl2-a {
     background:transparent; color:${splitStyle.aFg};
@@ -973,6 +1027,27 @@ function buildHtml(payload) {
     white-space:pre-line; text-align:left;
     border:0.055em solid #111111;
     box-shadow:0 5px 14px rgba(0,0,0,.22);
+  }` : ''}${isWing ? `
+  /* v11.0: บอลลูนผังปีก — เหลี่ยม ขอบดำ จัดกึ่งกลาง มีบรรทัดรองตัวเล็ก */
+  .bubble.b2 {
+    border-radius:0;
+    border:0.055em solid #111111;
+    display:flex; flex-direction:column; align-items:center;
+    text-align:center; white-space:normal;
+    padding:0.40em 0.62em; line-height:1.28;
+  }
+  .b2-m { font-weight:800; font-size:1.04em; display:block; }
+  .b2-s { font-weight:600; font-size:0.76em; display:block; margin-top:0.12em; }
+  /* v11.0: แถบปิดท้าย เต็มความกว้าง ล่างสุด */
+  .footerbar {
+    position:absolute; left:5%; right:5%; bottom:4.5%;
+    background:${sectionColor}; color:#FFFFFF;
+    font-family:'${fontHeadline}',sans-serif; font-weight:800;
+    font-size:${Math.round(headlinePx * 0.60)}px;
+    padding:0.22em 0.40em; line-height:1.26;
+    text-align:center; border:0.045em solid #111111;
+    box-shadow:0 6px 16px rgba(0,0,0,.24);
+    z-index:4;
   }` : ''}
   .bubble-bottom { top:auto; }
   .bubble > span { display:inline-block; }
@@ -1013,7 +1088,7 @@ function buildHtml(payload) {
     <div class="photo" id="photo"></div>
     ${stickerHtml}
     <div class="banner" id="banner">${bannerInnerHtml}</div>
-    ${bubbleHtml}
+    ${bubbleHtml}${footerHtml}
   </div>
   <script>
     // v3.1: ป้ายที่กว้าง 100% มี scrollWidth เท่ากับความกว้างภาพเสมอ
