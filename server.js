@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.3';
+const BUILD = 'v10.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,11 +183,11 @@ const PATTERNS = {
   },
   // v10.1: ผังคอลัมน์ไหล — ใช้กับบอลลูนแบบหัวข้อ+รายการ ที่ความสูงไม่เท่ากัน
   'left-col': {
-    kind: 'column', maxWidth: '48%', font: 0.030,
+    kind: 'column', maxWidth: '48%', font: 0.026,
     slots: [{ top: '25%', left: '4.5%' }],
   },
   'right-col': {
-    kind: 'column', maxWidth: '48%', font: 0.030,
+    kind: 'column', maxWidth: '48%', font: 0.026,
     slots: [{ top: '25%', right: '4.5%' }],
   },
   // v8.8: ผังรายภาพสำหรับระบบ Panel Layout (ชีต 78) — ระยะขอบเท่ากันทุกช่อง
@@ -933,20 +933,21 @@ function buildHtml(payload) {
   .colwrap {
     position:absolute; width:${pattern.maxWidth};
     display:flex; flex-direction:column; align-items:flex-start;
-    gap:${Math.round(bubbleFontPx * 0.52)}px; z-index:4;
+    font-size:${bubbleFontPx}px;
+    gap:0.52em; z-index:4;
   }
   .sect { display:flex; flex-direction:column; align-items:flex-start; width:100%; }
   .sect-h {
     display:inline-block; background:${sectionColor}; color:#FFFFFF;
     font-family:'${fontHeadline}',sans-serif; font-weight:800;
-    font-size:${Math.round(bubbleFontPx * 1.10)}px;
+    font-size:1.10em;
     padding:0.16em 0.60em; line-height:1.30;
     box-shadow:0 5px 14px rgba(0,0,0,.28);
   }
   .sect-b {
     display:inline-block; background:#FFFFFF; color:#111111;
     font-family:'${fontBody}',sans-serif; font-weight:700;
-    font-size:${Math.round(bubbleFontPx * 1.06)}px;
+    font-size:1.06em;
     padding:0.46em 0.78em; line-height:1.66;
     white-space:pre-line; text-align:left;
     box-shadow:0 5px 14px rgba(0,0,0,.22);
@@ -1055,7 +1056,21 @@ function buildHtml(payload) {
       bannerBox.style.fontSize = '${headlinePx}px';
       bannerBox.style.whiteSpace = 'normal';
       fit(bannerBox, bannerText, 0.97);
-    }
+    }${isColumn ? `
+
+    // v10.4: คอลัมน์ต้องไม่ล้นภาพ — เนื้อหาแต่ละสินค้ายาวไม่เท่ากัน
+    //   ย่อทั้งกลุ่มลงทีละขั้นจนพอดี แทนที่จะตั้งฟอนต์ตายตัวแล้วหวังว่าจะพอดี
+    var colWrap = document.querySelector('.colwrap');
+    if (colWrap) {
+      var colLimit = ${Math.round(H * 0.965)};
+      var colFs = parseFloat(getComputedStyle(colWrap).fontSize);
+      var colGuard = 0;
+      while (colWrap.getBoundingClientRect().bottom > colLimit && colFs > 13 && colGuard < 90) {
+        colFs -= 1;
+        colWrap.style.fontSize = colFs + 'px';
+        colGuard += 1;
+      }
+    }` : ''}
 
     // v4.5: เกาะสติกเกอร์เข้ากับป้ายพาดหัว ตำแหน่งแยกรายเพจ
     // ของเดิมฟิกซ์ไว้ที่มุมภาพ (top:0.8% left:2%) ทุกเพจจึงเหมือนกันหมด
