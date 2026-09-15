@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.6';
+const BUILD = 'v10.7';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -436,7 +436,9 @@ function buildHtml(payload) {
   const seqNo = num(payload.imageSequence, num(payload && payload.panel && payload.panel.sequence, 1));
   const jSeed = str(dt.pageId || dt.designId || '') + '|' + seqNo;
   const hlScale = panelLayoutOn ? 1 + jitter(jSeed + '|s', 0.06) / 1 : 1;
-  const hlTiltDeg = panelLayoutOn ? jitter(jSeed + '|r', 1.5) : 0;
+  // v10.7: เจ้าของสั่งให้พาดหัวตรง ไม่เอียง ทุกเพจที่ใช้ผังรายภาพ
+  //   ความไม่เป๊ะยังอยู่ที่ขนาดกับระยะเยื้อง แค่เอาการหมุนออก
+  const hlTiltDeg = 0;
   const hlTopPct = panelLayoutOn ? 4.2 + jitter(jSeed + '|y', 0.8) : 4.2;
   // v9.2: พาดหัว 2 บรรทัดของภาพแรกต้องใหญ่กว่าภาพอื่นราว 1.3 เท่า วัดจากภาพต้นแบบ
   // v9.3: พาดหัว 2 บรรทัดมี 3 โหมด — หมวด 1 ใช้ brand-split / หมวดคละสินค้าใช้ 2 ตัวใหม่
@@ -530,7 +532,7 @@ function buildHtml(payload) {
     : panelLayoutOn
     ? `top:${hlTopPct.toFixed(2)}%; left:50%;
        margin-left:${Math.round(W * hlShiftPct / 100)}px;
-       transform:translateX(-50%) rotate(${hlTiltDeg}deg);
+       transform:translateX(-50%);
        display:flex; align-items:center; justify-content:center;`
     : `top:4.2%; left:50%; transform:translateX(-50%);
     ${isTag ? '' : `min-height:${Math.round(S * bannerHeightPct / 100)}px;`}
@@ -880,7 +882,6 @@ function buildHtml(payload) {
     font-size:1.00em;
     text-shadow:${ringOutline(0.115, '#FFFFFF')};
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
-    transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
   }
   .hl2-b {
     background:transparent; color:${splitStyle.bFg};
@@ -888,7 +889,6 @@ function buildHtml(payload) {
     text-shadow:${ringOutline(0.115, '#FFFFFF')};
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     margin-left:${splitStyle.bShift}%;
-    transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
     /* v10.5: ขีดเส้นใต้แดงย้ายมาเป็นพื้นหลัง เพื่อปล่อย ::before/::after ไปทำขีดข้าง */
     background-image:linear-gradient(${splitStyle.aFg}, ${splitStyle.aFg});
     background-repeat:no-repeat;
@@ -911,14 +911,12 @@ function buildHtml(payload) {
     background:${splitStyle.aBg}; color:${splitStyle.aFg};
     font-size:1.00em;
     ${splitStyle.stroke ? `-webkit-text-stroke:0.14em ${splitStyle.aBg};` : ''}
-    transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
   }
   .hl2-b {
     background:${splitStyle.bBg}; color:${splitStyle.bFg};
     font-size:${splitStyle.bSize}em;
     ${splitStyle.stroke ? `-webkit-text-stroke:0.14em ${splitStyle.bBg};` : ''}
     margin-left:${splitStyle.bShift}%;
-    transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
   }
   `}` : ''}
   /* v4.3: ต้องเป็น inline-block ไม่งั้น Chrome คืน scrollWidth = 0
