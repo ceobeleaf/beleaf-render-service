@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v10.5';
+const BUILD = 'v10.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -398,6 +398,22 @@ function canvasHeight(payload) {
   const d = (payload && payload.renderDirectives) || {};
   const key = String(d.aspectRatio == null ? '' : d.aspectRatio).trim() || '1:1';
   return ASPECT_H[key] || 1080;
+}
+
+// v10.6: ขอบตัวอักษรแบบไม่มีเงี่ยง
+//   -webkit-text-stroke ใช้การต่อมุมแบบ miter พอขอบหนา มุมแหลมของตัวอักษรไทย
+//   (สระ วรรณยุกต์ หางตัว) จะยืดออกมาเป็นหนามแหลม แก้ด้วยการตั้งค่าไม่ได้
+//   จึงเปลี่ยนไปวาดเงาซ้อนรอบตัวอักษรเป็นวงกลมแทน ได้ขอบมนสม่ำเสมอทุกมุม
+function ringOutline(radiusEm, color) {
+  const out = [];
+  const rings = [radiusEm, radiusEm * 0.62];
+  for (const r of rings) {
+    for (let i = 0; i < 24; i += 1) {
+      const a = (Math.PI * 2 * i) / 24;
+      out.push(`${(Math.cos(a) * r).toFixed(4)}em ${(Math.sin(a) * r).toFixed(4)}em 0 ${color}`);
+    }
+  }
+  return out.join(', ');
 }
 
 function buildHtml(payload) {
@@ -862,14 +878,14 @@ function buildHtml(payload) {
   .hl2-a {
     background:transparent; color:${splitStyle.aFg};
     font-size:1.00em;
-    -webkit-text-stroke:0.23em #FFFFFF;
+    text-shadow:${ringOutline(0.115, '#FFFFFF')};
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     transform:rotate(${(-1.6 + hlTiltDeg * 0.4).toFixed(2)}deg);
   }
   .hl2-b {
     background:transparent; color:${splitStyle.bFg};
     font-size:${splitStyle.bSize}em;
-    -webkit-text-stroke:0.23em #FFFFFF;
+    text-shadow:${ringOutline(0.115, '#FFFFFF')};
     filter:drop-shadow(0 5px 14px rgba(0,0,0,.30));
     margin-left:${splitStyle.bShift}%;
     transform:rotate(${(1.1 + hlTiltDeg * 0.3).toFixed(2)}deg);
@@ -882,12 +898,14 @@ function buildHtml(payload) {
   /* v10.5: ขีดแดงสองข้างบรรทัดล่าง ตามภาพต้นแบบ */
   .hl2-b::before, .hl2-b::after {
     color:${splitStyle.aFg};
-    -webkit-text-stroke:0.10em #FFFFFF;
-    font-size:0.82em;
-    vertical-align:0.06em;
+    text-shadow:${ringOutline(0.07, '#FFFFFF')};
+    font-size:0.80em;
+    vertical-align:0.10em;
+    display:inline-block;
   }
-  .hl2-b::before { content:'///'; margin-right:0.18em; }
-  .hl2-b::after  { content:'///'; margin-left:0.18em; }
+  /* v10.6: ขีดสองข้างเอียงคนละทาง และถอยห่างจากข้อความตามภาพต้นแบบ */
+  .hl2-b::before { content:'///'; margin-right:0.34em; transform:scaleX(-1); }
+  .hl2-b::after  { content:'///'; margin-left:0.34em; }
   ` : `
   .hl2-a {
     background:${splitStyle.aBg}; color:${splitStyle.aFg};
