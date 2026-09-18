@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.1';
+const BUILD = 'v11.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -1032,6 +1032,8 @@ function buildHtml(payload) {
   }` : ''}${isWing ? `
   /* v11.0: บอลลูนผังปีก — เหลี่ยม ขอบดำ จัดกึ่งกลาง มีบรรทัดรองตัวเล็ก */
   .bubble.b2 {
+    /* v11.2: บังคับพื้นขาว-ตัวดำ-ขอบดำ ไม่ให้สีจากชีตดีไซน์ของเพจมาทับ */
+    background:#FFFFFF; color:#111111;
     border-radius:0;
     border:0.055em solid #111111;
     display:flex; flex-direction:column; align-items:center;
