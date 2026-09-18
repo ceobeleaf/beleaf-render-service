@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.0';
+const BUILD = 'v11.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -462,7 +462,7 @@ function buildHtml(payload) {
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.52 : 1.15) : 0.92) : 1));
+  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.52 : (hlModeEarly === 'stack-solid' ? 0.75 : 1.15)) : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(S * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -505,7 +505,7 @@ function buildHtml(payload) {
     // v11.0: สองแถบทึบเต็มความกว้าง บรรทัดล่างใหญ่กว่าบรรทัดบน
     'stack-solid': {
       aBg: brandColor || '#E0201B', aFg: '#FFFFFF', bBg: '#FFFFFF', bFg: '#111111',
-      bSize: 1.35, bShift: 0, stroke: false, full: true, bBorder: true,
+      bSize: 1.20, bShift: 0, stroke: false, full: true, bBorder: true,
     },
   };
   const splitStyle = SPLIT_STYLES[headlineMode] || null;
@@ -616,8 +616,10 @@ function buildHtml(payload) {
   // v10.2: ถ้าชีตสั่งผังคอลัมน์มา ต้องใช้ผังนั้นเสมอ แม้เนื้อหาจะเข้าเงื่อนไขพารากราฟ
   //   ของเดิมเช็ค useParagraph ก่อน จึงไม่เคยมองเห็น slotPattern เลย
   const slotKeyLower = layoutSlot.toLowerCase();
-  const slotIsColumn = Boolean(PATTERNS[slotKeyLower]) && PATTERNS[slotKeyLower].kind === 'column';
-  const requested = slotIsColumn ? layoutSlot : useParagraph
+  // v11.1: ถ้าชีต 78 ระบุผังมาโดยตรง ผังนั้นต้องชนะทุกอย่าง
+  //   ของเดิมกันไว้เฉพาะตระกูลคอลัมน์ ผังปีก (kind blocks) จึงยังโดนสลับเป็นพารากราฟ
+  const slotLocked = panelLayoutOn && Boolean(PATTERNS[slotKeyLower]);
+  const requested = slotLocked ? layoutSlot : useParagraph
     ? (layoutPara || str(styleRow['Paragraph Pattern'] || bubble.paragraphPattern, DEFAULT_PARAGRAPH_PATTERN))
     : (layoutSlot || str(styleRow['Slot Pattern'] || bubble.slotPattern, DEFAULT_PATTERN));
 
@@ -625,9 +627,9 @@ function buildHtml(payload) {
   let patternKey = requested.toLowerCase();
   if (!PATTERNS[patternKey]) patternKey = useParagraph ? DEFAULT_PARAGRAPH_PATTERN : DEFAULT_PATTERN;
   // v10.1: ผังคอลัมน์เป็นตระกูลของตัวเอง ห้ามโดนสลับไปเป็นพารากราฟหรือช่องตายตัว
-  const isColumnPattern = PATTERNS[patternKey].kind === 'column';
-  if (!isColumnPattern && useParagraph && PATTERNS[patternKey].kind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
-  if (!isColumnPattern && !useParagraph && PATTERNS[patternKey].kind === 'paragraph') patternKey = DEFAULT_PATTERN;
+  const keepSlot = slotLocked || PATTERNS[patternKey].kind === 'column';
+  if (!keepSlot && useParagraph && PATTERNS[patternKey].kind !== 'paragraph') patternKey = DEFAULT_PARAGRAPH_PATTERN;
+  if (!keepSlot && !useParagraph && PATTERNS[patternKey].kind === 'paragraph') patternKey = DEFAULT_PATTERN;
 
   const pattern = PATTERNS[patternKey];
   const isParagraphLayout = pattern.kind === 'paragraph';
