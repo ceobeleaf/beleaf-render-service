@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.2';
+const BUILD = 'v11.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,7 +183,7 @@ const PATTERNS = {
   },
   // v11.0: ผังปีก — บอลลูนขนาบซ้าย-ขวาสินค้าตรงกลาง สลับระดับกันไม่ให้ดูเป็นตาราง
   'wing-5': {
-    kind: 'blocks', maxWidth: '31%', font: 0.030,
+    kind: 'blocks', maxWidth: '34%', font: 0.037,
     slots: [
       { top: '30%', left: '3%' }, { top: '46%', left: '3%' }, { top: '62%', left: '3%' },
       { top: '34%', right: '3%' }, { top: '52%', right: '3%' }, { top: '70%', right: '3%' },
