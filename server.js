@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.5';
+const BUILD = 'v11.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,10 +183,10 @@ const PATTERNS = {
   },
   // v11.0: ผังปีก — บอลลูนขนาบซ้าย-ขวาสินค้าตรงกลาง สลับระดับกันไม่ให้ดูเป็นตาราง
   'wing-5': {
-    kind: 'blocks', maxWidth: '32%', font: 0.044,
+    kind: 'blocks', maxWidth: '27%', font: 0.044,
     slots: [
-      { top: '30%', left: '3%' }, { top: '46%', left: '3%' }, { top: '62%', left: '3%' },
-      { top: '34%', right: '3%' }, { top: '52%', right: '3%' }, { top: '70%', right: '3%' },
+      { top: '30.4%', left: '4.8%' }, { top: '45.9%', left: '4.8%' }, { top: '62.2%', left: '4.8%' },
+      { top: '34.3%', right: '4.2%' }, { top: '52.3%', right: '4.2%' }, { top: '70%', right: '4.2%' },
     ],
   },
   // v10.1: ผังคอลัมน์ไหล — ใช้กับบอลลูนแบบหัวข้อ+รายการ ที่ความสูงไม่เท่ากัน
@@ -1248,7 +1248,29 @@ function buildHtml(payload) {
       if (b.classList.contains('b2')) return;` : ''}
       if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(S * 0.92)});
       else fitBubble(b, ratio);
-    });
+    });${isWing ? `
+
+    // v11.6: กันกล่องผังปีกเบียดกันเอง
+    //   ช่องเป็นตำแหน่งตายตัว แต่กล่องสูงไม่เท่ากันตามจำนวนบรรทัด
+    //   กล่อง 3 บรรทัดจึงล้นไปชนกล่องถัดไป แก้โดยไล่ดันลงทีละใบในแต่ละฝั่ง
+    ['left', 'right'].forEach(function (side) {
+      var col = Array.prototype.slice.call(document.querySelectorAll('.bubble.b2'))
+        .filter(function (b) { return side === 'left' ? b.style.left : b.style.right; })
+        .sort(function (a, b) { return a.getBoundingClientRect().top - b.getBoundingClientRect().top; });
+      var gap = ${Math.round(H * 0.022)};
+      var floor = ${Math.round(H * 0.955)};
+      var prevBottom = 0;
+      col.forEach(function (b) {
+        var r = b.getBoundingClientRect();
+        if (prevBottom && r.top < prevBottom + gap) {
+          var want = prevBottom + gap;
+          if (want + r.height > floor) want = Math.max(r.top, floor - r.height);
+          b.style.top = want + 'px';
+          r = b.getBoundingClientRect();
+        }
+        prevBottom = r.bottom;
+      });
+    });` : ''}
 
     // v4.6: กันกล่องข้อความทับป้ายพาดหัว
     // บางผังมีช่องสำรองอยู่สูงถึง 14% แต่ป้ายกินลงมาถึงราว 19% (ความสูงป้ายมาจากชีต 20)
