@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.4';
+const BUILD = 'v11.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,7 +183,7 @@ const PATTERNS = {
   },
   // v11.0: ผังปีก — บอลลูนขนาบซ้าย-ขวาสินค้าตรงกลาง สลับระดับกันไม่ให้ดูเป็นตาราง
   'wing-5': {
-    kind: 'blocks', maxWidth: '29%', font: 0.044,
+    kind: 'blocks', maxWidth: '32%', font: 0.044,
     slots: [
       { top: '30%', left: '3%' }, { top: '46%', left: '3%' }, { top: '62%', left: '3%' },
       { top: '34%', right: '3%' }, { top: '52%', right: '3%' }, { top: '70%', right: '3%' },
@@ -1242,7 +1242,10 @@ function buildHtml(payload) {
     }
 
     var ratio = ${(parseFloat(pattern.maxWidth) / 100).toFixed(3)};
-    document.querySelectorAll('.bubble').forEach(function (b) {
+    document.querySelectorAll('.bubble').forEach(function (b) {${isWing ? `
+      // v11.5: ผังปีกปล่อยให้ข้อความตัดบรรทัดเองตามต้นฉบับ ห้ามหรี่ตัวอักษร
+      //   ของเดิมบังคับให้อยู่บรรทัดเดียว พอกล่องแคบจึงย่อลงจนเหลือ 26px อ่านไม่ออก
+      if (b.classList.contains('b2')) return;` : ''}
       if (${isParagraphLayout}) fitParagraph(b, ratio, ${Math.round(S * 0.92)});
       else fitBubble(b, ratio);
     });
