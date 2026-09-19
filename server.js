@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.3';
+const BUILD = 'v11.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -183,7 +183,7 @@ const PATTERNS = {
   },
   // v11.0: ผังปีก — บอลลูนขนาบซ้าย-ขวาสินค้าตรงกลาง สลับระดับกันไม่ให้ดูเป็นตาราง
   'wing-5': {
-    kind: 'blocks', maxWidth: '34%', font: 0.037,
+    kind: 'blocks', maxWidth: '29%', font: 0.044,
     slots: [
       { top: '30%', left: '3%' }, { top: '46%', left: '3%' }, { top: '62%', left: '3%' },
       { top: '34%', right: '3%' }, { top: '52%', right: '3%' }, { top: '70%', right: '3%' },
@@ -462,7 +462,7 @@ function buildHtml(payload) {
   const scaleKey = ['small', 'medium', 'large'].includes(str(rd.fontScale))
     ? str(rd.fontScale) : 'medium';
   const sc = SCALE[scaleKey];
-  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.52 : (hlModeEarly === 'stack-solid' ? 0.75 : 1.15)) : 0.92) : 1));
+  const headlinePx = Math.round(S * sc.headline * (panelLayoutOn ? hlScale * (splitLikely ? (splitBig ? 1.52 : (hlModeEarly === 'stack-solid' ? 0.88 : 1.15)) : 0.92) : 1));
   // v3.5: Product Emphasis = large -> ย่อกล่องข้อความ เปิดพื้นที่ให้สินค้า
   const bubblePx = Math.round(S * sc.bubble); // ค่ากลาง ใช้เมื่อผังไม่ได้กำหนด
 
@@ -1047,7 +1047,7 @@ function buildHtml(payload) {
     position:absolute; left:5%; right:5%; bottom:4.5%;
     background:${sectionColor}; color:#FFFFFF;
     font-family:'${fontHeadline}',sans-serif; font-weight:800;
-    font-size:${Math.round(headlinePx * 0.60)}px;
+    font-size:${Math.round(headlinePx * 0.82)}px;
     padding:0.22em 0.40em; line-height:1.26;
     text-align:center; border:0.045em solid #111111;
     box-shadow:0 6px 16px rgba(0,0,0,.24);
