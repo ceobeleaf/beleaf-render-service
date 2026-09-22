@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v11.6';
+const BUILD = 'v12.0';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -424,6 +424,114 @@ function ringOutline(radiusEm, color) {
   return out.join(', ');
 }
 
+// v12.0: ผัง Spotlight (P014) — สินค้าใหญ่ชิดซ้าย · ขวามี Highlight / วงกลมรูปเม็ด + คำกำกับลายมือ + ลูกศร / กล่องอธิบาย / รีวิว
+//   วัดพิกัดทุกชิ้นจากภาพต้นแบบเป็นพิกเซลที่ 1122x1402 แล้วแปลงเป็นสัดส่วน จึงตรงต้นแบบทุกขนาดผืนผ้าใบ
+//   ทำงานเฉพาะเมื่อชีต 78 สั่ง slotPattern = spot-right เท่านั้น เพจอื่นไม่ผ่านโค้ดนี้เลย
+function spotRing(r, color, rings) {
+  const out = [];
+  (rings || [1, 0.75, 0.5]).forEach((k) => {
+    const rr = r * k;
+    for (let i = 0; i < 28; i += 1) {
+      const a = (Math.PI * 2 * i) / 28;
+      out.push(`${(Math.cos(a) * rr).toFixed(4)}em ${(Math.sin(a) * rr).toFixed(4)}em 0 ${color}`);
+    }
+  });
+  return out.join(', ');
+}
+function buildSpotHtml(payload, W, H) {
+  const rd = payload?.renderDirectives || {};
+  const K = W / 1122;                       // สเกลจากภาพต้นแบบ
+  const px = (v) => Math.round(v * K * 10) / 10;
+  const photo = str(payload.__imageDataUrl);
+  const insert = str(payload.__insertDataUrl);
+  const hasInsert = Boolean(insert);
+
+  // แยกข้อความตามหัว — WF2 ส่งมาเป็น "HI :: ...", "N1 :: ...", "EX :: ...", "RV :: ..."
+  const sec = {};
+  (Array.isArray(payload.overlayText) ? payload.overlayText : []).forEach((t) => {
+    const s = String(t == null ? '' : t);
+    const i = s.indexOf('::');
+    if (i < 0) return;
+    sec[s.slice(0, i).trim().toUpperCase()] = s.slice(i + 2).trim();
+  });
+  const lines = (s) => String(s || '').split('|').map((x) => x.trim()).filter(Boolean);
+  const hlRaw = String(payload.headline || '');
+  const hl = hlRaw.indexOf('||') >= 0 ? hlRaw.split('||') : [hlRaw, ''];
+  const hi = lines(sec.HI);
+  const n1 = lines(sec.N1);
+  const n2 = lines(sec.N2);
+  const ex = lines(sec.EX);
+  const rv = lines(sec.RV);
+
+  // ไม่มีรูปเม็ด = ซ่อนวงกลม คำกำกับ ลูกศร แล้วดันกล่องอธิบายขึ้นมาแทน
+  const exTop = hasInsert ? 58.3 : 30.0;
+  const rvTop = hasInsert ? 72.7 : 48.0;
+
+  const f = (a) => a.map(esc).join('<br>');
+  return `<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden}
+  .stage{position:relative;width:${W}px;height:${H}px;overflow:hidden;
+    background:#ddd url(${photo}) center/cover no-repeat}
+  .hl{position:absolute;left:4%;top:4%;z-index:5;font-family:'Kanit',sans-serif;font-weight:700;color:#111;
+    font-size:${px(93)}px;line-height:1.02;letter-spacing:-0.01em;white-space:nowrap;
+    text-shadow:${spotRing(0.12, '#FFFFFF')}}
+  .hl .ln{display:block;width:max-content;transform-origin:left top}
+  .hl .l1{font-size:${px(93 * 1.22)}px;margin-left:${px(16)}px}
+  .box{position:absolute;background:#fff;border-radius:${px(30)}px;text-align:center;color:#111;
+    font-family:'Kanit',sans-serif;box-shadow:0 ${px(4)}px ${px(18)}px rgba(0,0,0,.12)}
+  .hi{left:60.6%;top:11.4%;width:36.6%;padding:${px(16)}px 0;font-weight:600}
+  .hi .a{font-size:${px(70)}px;line-height:1.15;font-weight:700}
+  .hi .b{font-size:${px(52)}px;line-height:1.15}
+  .ci{position:absolute;left:57%;top:28.5%;width:${px(430)}px;height:${px(430)}px;border-radius:50%;
+    border:${px(9)}px solid #fff;background:#fff;overflow:hidden;box-sizing:border-box;
+    box-shadow:0 ${px(6)}px ${px(22)}px rgba(0,0,0,.18)}
+  .ci img{position:absolute;left:50%;top:50%;width:106%;height:106%;object-fit:cover;transform:translate(-50%,-50%)}
+  .nt{position:absolute;z-index:4;font-family:'Kanit',sans-serif;font-weight:600;color:#111;
+    font-size:${px(33)}px;line-height:1.1;text-align:center;white-space:nowrap;text-shadow:${spotRing(0.10, '#FFFFFF', [1, 0.6])}}
+  .ex{left:53.2%;top:${exTop}%;width:44.3%;padding:${px(18)}px 0;font-weight:600;font-size:${px(29.5)}px;
+    line-height:1.5;letter-spacing:-0.012em}
+  .rv{position:absolute;left:54.3%;top:${rvTop}%;font-family:'Kanit',sans-serif;font-weight:400;color:#1a1a1a;
+    font-size:${px(29)}px;line-height:1.62;white-space:nowrap}
+  svg.ar{position:absolute;left:0;top:0;z-index:4}
+</style></head><body><div class="stage">
+  <div class="hl"><span class="ln l1">${esc(hl[0] || '')}</span><span class="ln l2">${esc(hl[1] || '')}</span></div>
+  ${hi.length ? `<div class="box hi">${hi[0] ? `<div class="a">${esc(hi[0])}</div>` : ''}${hi[1] ? `<div class="b">${esc(hi[1])}</div>` : ''}</div>` : ''}
+  ${hasInsert ? `<div class="ci"><img src="${insert}"></div>
+  ${n1.length ? `<div class="nt" style="left:52.5%;top:27%;transform:rotate(-7deg)">${f(n1)}</div>` : ''}
+  ${n2.length ? `<div class="nt" style="left:86%;top:29.8%;transform:rotate(-6deg)">${f(n2)}</div>` : ''}
+  <svg class="ar" width="${W}" height="${H}" viewBox="0 0 1122 1402">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1 L8 5 L1 9" fill="none" stroke="#111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+    ${n1.length ? `<path d="M 612 468 C 600 505 628 530 668 545" fill="none" stroke="#fff" stroke-width="8.6" stroke-linecap="round"/>
+    <path d="M 612 468 C 600 505 628 530 668 545" fill="none" stroke="#111" stroke-width="3.6" stroke-linecap="round" marker-end="url(#ah)"/>` : ''}
+    ${n2.length ? `<path d="M 1050 520 C 1060 560 1040 585 1003 592" fill="none" stroke="#fff" stroke-width="8.6" stroke-linecap="round"/>
+    <path d="M 1050 520 C 1060 560 1040 585 1003 592" fill="none" stroke="#111" stroke-width="3.6" stroke-linecap="round" marker-end="url(#ah)"/>` : ''}
+  </svg>` : ''}
+  ${ex.length ? `<div class="box ex">${f(ex)}</div>` : ''}
+  ${rv.length ? `<div class="rv">${f(rv)}</div>` : ''}
+</div>
+<script>
+  // บีบเฉพาะบรรทัดที่ยาวเกิน 604px (ที่ 1122) ให้พอดี ส่วนบรรทัดสั้นไม่บีบ — ตามที่วัดได้จากต้นแบบ
+  (function(){
+    var max=${px(604)};
+    document.querySelectorAll('.hl .ln').forEach(function(e){
+      var w=e.getBoundingClientRect().width; if(w>max) e.style.transform='scaleX('+(max/w)+')';
+    });
+    // รีวิวยาวเกินขอบขวา ให้ย่อตัวอักษรทั้งก้อนลงจนพอดี
+    var rv=document.querySelector('.rv');
+    if(rv){ var lim=${W}*0.975, fs=parseFloat(getComputedStyle(rv).fontSize), g=0;
+      while(rv.getBoundingClientRect().right>lim && fs>16 && g<40){ fs-=1; rv.style.fontSize=fs+'px'; g++; } }
+    // กล่องอธิบายตัดบรรทัดเกินความกว้าง ให้ย่อลง
+    var ex=document.querySelector('.ex');
+    if(ex){ var fe=parseFloat(getComputedStyle(ex).fontSize), g2=0;
+      while(ex.scrollWidth>ex.clientWidth+1 && fe>16 && g2<40){ fe-=1; ex.style.fontSize=fe+'px'; g2++; } }
+  })();
+</script>
+</body></html>`;
+}
+
 function buildHtml(payload) {
   const dt = payload?.design?.designTemplate || {};
   const banner = dt.banner || {};
@@ -435,6 +543,8 @@ function buildHtml(payload) {
   const W = 1080;
   // v10.0/v10.2: สัดส่วนภาพจากชีต — ใช้ค่าเดียวกับ viewport ของเบราว์เซอร์
   const H = canvasHeight(payload);
+  // v12.0: ผัง Spotlight แยกออกไปทั้งชุด ไม่ผ่านตรรกะเดิมเลย
+  if (str(rd.slotPattern) === 'spot-right') return buildSpotHtml(payload, W, H);
   // ขนาดตัวอักษรยึดด้านสั้นเสมอ ไม่งั้นภาพ 4:5 ตัวหนังสือจะพองขึ้น 25%
   const S = Math.min(W, H);
 
