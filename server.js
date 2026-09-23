@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.1';
+const BUILD = 'v12.2';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -464,8 +464,26 @@ function buildSpotHtml(payload, W, H) {
   const hi = lines(sec.HI);
   const n1 = lines(sec.N1);
   const n2 = lines(sec.N2);
-  const ex = lines(sec.EX);
-  const rv = lines(sec.RV);
+  // v12.2: ด่านสุดท้าย — บรรทัดยาวเกินเพดานจะทำให้ตัวหนังสือหดจนอ่านไม่ออก
+  //   คำไทยติดกันยาวๆ ถือเป็นคำเดียว ตัวตัดตามวรรคจึงตัดไม่ได้ ต้องตัดตามจำนวนตัวที่นี่
+  const capRows = (arr, cap) => {
+    const acc = [];
+    arr.forEach((line) => {
+      let rest = String(line || '');
+      let guard = 0;
+      while (rest.length > cap && guard < 8) {
+        const cut = rest.lastIndexOf(' ', cap);
+        const at = cut > cap * 0.5 ? cut : cap;
+        acc.push(rest.slice(0, at).trim());
+        rest = rest.slice(at).trim();
+        guard += 1;
+      }
+      if (rest) acc.push(rest);
+    });
+    return acc;
+  };
+  const ex = capRows(lines(sec.EX), 30).slice(0, 3);
+  const rv = capRows(lines(sec.RV), 30).slice(0, 6);
 
   // ไม่มีรูปเม็ด = ซ่อนวงกลม คำกำกับ ลูกศร แล้วดันกล่องอธิบายขึ้นมาแทน
   const exTop = hasInsert ? 58.3 : 30.0;
