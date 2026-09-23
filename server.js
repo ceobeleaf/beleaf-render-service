@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.0';
+const BUILD = 'v12.1';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -443,7 +443,11 @@ function buildSpotHtml(payload, W, H) {
   const K = W / 1122;                       // สเกลจากภาพต้นแบบ
   const px = (v) => Math.round(v * K * 10) / 10;
   const photo = str(payload.__imageDataUrl);
-  const insert = str(payload.__insertDataUrl);
+  // v12.1: รูปเม็ดมาได้ 2 ทาง — แนบมาเป็น data URL หรือส่งมาแค่ไอดีไฟล์ใน Drive
+  //   แบบไอดีใช้ลิงก์รูปย่อสาธารณะ ตัวเรนเดอร์จึงดึงเองได้โดยไม่ต้องมีกุญแจ Google
+  const insertId = str(rd.insertImageId);
+  const insert = str(payload.__insertDataUrl)
+    || (insertId ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(insertId)}&sz=w1000` : '');
   const hasInsert = Boolean(insert);
 
   // แยกข้อความตามหัว — WF2 ส่งมาเป็น "HI :: ...", "N1 :: ...", "EX :: ...", "RV :: ..."
