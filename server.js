@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.2';
+const BUILD = 'v12.3';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -445,7 +445,12 @@ function buildSpotHtml(payload, W, H) {
   const photo = str(payload.__imageDataUrl);
   // v12.1: รูปเม็ดมาได้ 2 ทาง — แนบมาเป็น data URL หรือส่งมาแค่ไอดีไฟล์ใน Drive
   //   แบบไอดีใช้ลิงก์รูปย่อสาธารณะ ตัวเรนเดอร์จึงดึงเองได้โดยไม่ต้องมีกุญแจ Google
-  const insertId = str(rd.insertImageId);
+  // v12.3: ช่องรูปเม็ดใส่หลายไอดีคั่นด้วยจุลภาคได้ ระบบจะสลับเองตามงาน โพสต์จึงไม่ซ้ำรูป
+  const insertIds = str(rd.insertImageId).split(/[,|\s]+/).map((v) => v.trim()).filter(Boolean);
+  const hashOf = (t) => { let h = 0; for (let i = 0; i < t.length; i += 1) h = (h * 31 + t.charCodeAt(i)) % 100000; return h; };
+  const insertId = insertIds.length
+    ? insertIds[hashOf(String(payload.headline || '') + String(payload.imageSequence || 1)) % insertIds.length]
+    : '';
   const insert = str(payload.__insertDataUrl)
     || (insertId ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(insertId)}&sz=w1000` : '');
   const hasInsert = Boolean(insert);
@@ -482,15 +487,19 @@ function buildSpotHtml(payload, W, H) {
     });
     return acc;
   };
-  const ex = capRows(lines(sec.EX), 30).slice(0, 3);
-  const rv = capRows(lines(sec.RV), 30).slice(0, 6);
+  // v12.3: ส่งข้อความเต็มแล้วให้เบราว์เซอร์ตัดบรรทัดเอง
+  //   เบราว์เซอร์รู้จุดตัดคำไทย จึงไม่ขาดกลางคำแบบที่เราตัดเอง
+  const exText = lines(sec.EX).join(' ');
+  const rvText = lines(sec.RV).join(' ');
+  const ex = exText ? [exText] : [];
+  const rv = rvText ? [rvText] : [];
 
   // ไม่มีรูปเม็ด = ซ่อนวงกลม คำกำกับ ลูกศร แล้วดันกล่องอธิบายขึ้นมาแทน
   const exTop = hasInsert ? 58.3 : 30.0;
   const rvTop = hasInsert ? 72.7 : 48.0;
 
   const f = (a) => a.map(esc).join('<br>');
-  return `<!doctype html><html><head><meta charset="utf-8">
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden}
@@ -512,10 +521,10 @@ function buildSpotHtml(payload, W, H) {
   .ci img{position:absolute;left:50%;top:50%;width:106%;height:106%;object-fit:cover;transform:translate(-50%,-50%)}
   .nt{position:absolute;z-index:4;font-family:'Kanit',sans-serif;font-weight:600;color:#111;
     font-size:${px(33)}px;line-height:1.1;text-align:center;white-space:nowrap;text-shadow:${spotRing(0.10, '#FFFFFF', [1, 0.6])}}
-  .ex{left:53.2%;top:${exTop}%;width:44.3%;padding:${px(18)}px 0;font-weight:600;font-size:${px(29.5)}px;
-    line-height:1.5;letter-spacing:-0.012em}
-  .rv{position:absolute;left:54.3%;top:${rvTop}%;font-family:'Kanit',sans-serif;font-weight:400;color:#1a1a1a;
-    font-size:${px(29)}px;line-height:1.62;white-space:nowrap}
+  .ex{left:53.2%;top:${exTop}%;width:44.3%;padding:${px(18)}px ${px(14)}px;box-sizing:border-box;font-weight:600;
+    font-size:${px(29.5)}px;line-height:1.5;letter-spacing:-0.012em;word-break:normal;overflow-wrap:break-word}
+  .rv{position:absolute;left:54.3%;top:${rvTop}%;width:43%;font-family:'Kanit',sans-serif;font-weight:600;color:#111;
+    font-size:${px(29)}px;line-height:1.55;white-space:normal;word-break:normal;overflow-wrap:break-word}
   svg.ar{position:absolute;left:0;top:0;z-index:4}
 </style></head><body><div class="stage">
   <div class="hl"><span class="ln l1">${esc(hl[0] || '')}</span><span class="ln l2">${esc(hl[1] || '')}</span></div>
@@ -543,8 +552,8 @@ function buildSpotHtml(payload, W, H) {
     });
     // รีวิวยาวเกินขอบขวา ให้ย่อตัวอักษรทั้งก้อนลงจนพอดี
     var rv=document.querySelector('.rv');
-    if(rv){ var lim=${W}*0.975, fs=parseFloat(getComputedStyle(rv).fontSize), g=0;
-      while(rv.getBoundingClientRect().right>lim && fs>16 && g<40){ fs-=1; rv.style.fontSize=fs+'px'; g++; } }
+    if(rv){ var floor=${Math.round(H * 0.965)}, fs=parseFloat(getComputedStyle(rv).fontSize), g=0;
+      while(rv.getBoundingClientRect().bottom>floor && fs>20 && g<40){ fs-=1; rv.style.fontSize=fs+'px'; g++; } }
     // กล่องอธิบายตัดบรรทัดเกินความกว้าง ให้ย่อลง
     var ex=document.querySelector('.ex');
     if(ex){ var fe=parseFloat(getComputedStyle(ex).fontSize), g2=0;
