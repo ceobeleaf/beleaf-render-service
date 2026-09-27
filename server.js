@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.4';
+const BUILD = 'v12.5';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -438,6 +438,62 @@ function spotRing(r, color, rings) {
   });
   return out.join(', ');
 }
+// v12.5: ผัง Band — ภาพสินค้าเต็มบน แถบดำทึบล่าง กล่องแดงคร่อมรอยต่อ
+//   พิกัดทุกชิ้นวัดจากภาพต้นแบบที่ 1254x1254 แล้วคิดเป็นสัดส่วน
+function buildBandHtml(payload, W, H) {
+  const K = W / 1254;
+  const px = (v) => Math.round(v * K * 10) / 10;
+  const photo = str(payload.__imageDataUrl);
+  const sec = {};
+  (Array.isArray(payload.overlayText) ? payload.overlayText : []).forEach((t) => {
+    const s = String(t == null ? '' : t);
+    const i = s.indexOf('::');
+    if (i < 0) return;
+    sec[s.slice(0, i).trim().toUpperCase()] = s.slice(i + 2).trim();
+  });
+  const hlRaw = String(payload.headline || '');
+  const hl = hlRaw.indexOf('||') >= 0 ? hlRaw.split('||') : [hlRaw, ''];
+  const hd = str(sec.HD) || str(hl[0]);
+  const yl = str(sec.YL) || str(hl[1]);
+  const wt = str(sec.WT);
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden}
+  .stage{position:relative;width:${W}px;height:${H}px;overflow:hidden;background:#ddd url(${photo}) center/cover no-repeat;
+    font-family:'Kanit',sans-serif}
+  .band{position:absolute;left:0;right:0;top:77.8%;bottom:0;background:#000}
+  .hd{position:absolute;left:50%;top:65.4%;transform:translateX(-50%);width:83.8%;height:12.3%;
+    background:#E00000;border-radius:${px(46)}px;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:${px(78)}px;white-space:nowrap;z-index:3;
+    box-shadow:0 ${px(6)}px ${px(20)}px rgba(0,0,0,.35)}
+  .yl{position:absolute;left:0;right:0;top:79.4%;text-align:center;color:#F8F870;font-weight:800;
+    font-size:${px(86)}px;line-height:1.05;white-space:nowrap;z-index:3}
+  .wt{position:absolute;left:0;right:0;top:88.2%;text-align:center;color:#F8F8F8;font-weight:700;
+    font-size:${px(80)}px;line-height:1.05;white-space:nowrap;z-index:3}
+</style></head><body><div class="stage">
+  <div class="band"></div>
+  ${hd ? `<div class="hd"><span>${esc(hd)}</span></div>` : ''}
+  ${yl ? `<div class="yl"><span>${esc(yl)}</span></div>` : ''}
+  ${wt ? `<div class="wt"><span>${esc(wt)}</span></div>` : ''}
+</div>
+<script>
+  // ทุกบรรทัดต้องอยู่บรรทัดเดียว ไม่ตัดคำ — ยาวเกินก็ย่อตัวอักษรลง
+  (function(){
+    function fit(el, limit, min){
+      if(!el) return;
+      var s = el.firstElementChild || el, g = 0;
+      var fs = parseFloat(getComputedStyle(el).fontSize);
+      while(s.getBoundingClientRect().width > limit && fs > min && g < 80){ fs -= 1; el.style.fontSize = fs + 'px'; g++; }
+    }
+    fit(document.querySelector('.hd'), ${W} * 0.78, 20);
+    fit(document.querySelector('.yl'), ${W} * 0.93, 20);
+    fit(document.querySelector('.wt'), ${W} * 0.93, 20);
+  })();
+</script>
+</body></html>`;
+}
+
 function buildSpotHtml(payload, W, H) {
   const rd = payload?.renderDirectives || {};
   const K = W / 1122;                       // สเกลจากภาพต้นแบบ
@@ -576,6 +632,7 @@ function buildHtml(payload) {
   const H = canvasHeight(payload);
   // v12.0: ผัง Spotlight แยกออกไปทั้งชุด ไม่ผ่านตรรกะเดิมเลย
   if (str(rd.slotPattern) === 'spot-right') return buildSpotHtml(payload, W, H);
+  if (str(rd.slotPattern) === 'band-bottom') return buildBandHtml(payload, W, H);
   // ขนาดตัวอักษรยึดด้านสั้นเสมอ ไม่งั้นภาพ 4:5 ตัวหนังสือจะพองขึ้น 25%
   const S = Math.min(W, H);
 
