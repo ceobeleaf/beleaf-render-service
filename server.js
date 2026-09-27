@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.3';
+const BUILD = 'v12.4';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -516,9 +516,9 @@ function buildSpotHtml(payload, W, H) {
   .hi .a{font-size:${px(70)}px;line-height:1.15;font-weight:700}
   .hi .b{font-size:${px(52)}px;line-height:1.15}
   .ci{position:absolute;left:57%;top:28.5%;width:${px(430)}px;height:${px(430)}px;border-radius:50%;
-    border:${px(9)}px solid #fff;background:#fff;overflow:hidden;box-sizing:border-box;
-    box-shadow:0 ${px(6)}px ${px(22)}px rgba(0,0,0,.18)}
-  .ci img{position:absolute;left:50%;top:50%;width:106%;height:106%;object-fit:cover;transform:translate(-50%,-50%)}
+    border:${px(12)}px solid #fff;background:#fff;overflow:hidden;box-sizing:border-box;
+    box-shadow:0 ${px(6)}px ${px(22)}px rgba(0,0,0,.28), 0 0 0 ${px(2)}px rgba(0,0,0,.10)}
+  .ci img{position:absolute;left:50%;top:50%;width:185%;height:185%;object-fit:cover;transform:translate(-50%,-50%)}
   .nt{position:absolute;z-index:4;font-family:'Kanit',sans-serif;font-weight:600;color:#111;
     font-size:${px(33)}px;line-height:1.1;text-align:center;white-space:nowrap;text-shadow:${spotRing(0.10, '#FFFFFF', [1, 0.6])}}
   .ex{left:53.2%;top:${exTop}%;width:44.3%;padding:${px(18)}px ${px(14)}px;box-sizing:border-box;font-weight:600;
