@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.5';
+const BUILD = 'v12.6';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -463,7 +463,7 @@ function buildBandHtml(payload, W, H) {
   .stage{position:relative;width:${W}px;height:${H}px;overflow:hidden;background:#ddd url(${photo}) center/cover no-repeat;
     font-family:'Kanit',sans-serif}
   .band{position:absolute;left:0;right:0;top:77.8%;bottom:0;background:#000}
-  .hd{position:absolute;left:50%;top:65.4%;transform:translateX(-50%);width:83.8%;height:12.3%;
+  .hd{position:absolute;left:50%;top:65.4%;transform:translateX(-50%);height:12.3%;max-width:92%;padding:0 ${px(54)}px;box-sizing:border-box;
     background:#E00000;border-radius:${px(46)}px;display:flex;align-items:center;justify-content:center;
     color:#fff;font-weight:800;font-size:${px(78)}px;white-space:nowrap;z-index:3;
     box-shadow:0 ${px(6)}px ${px(20)}px rgba(0,0,0,.35)}
@@ -480,15 +480,19 @@ function buildBandHtml(payload, W, H) {
 <script>
   // ทุกบรรทัดต้องอยู่บรรทัดเดียว ไม่ตัดคำ — ยาวเกินก็ย่อตัวอักษรลง
   (function(){
-    function fit(el, limit, min){
+    // v12.6: ขยายหรือย่อให้ข้อความเต็มความกว้างที่กำหนดเสมอ
+    //   ของเดิมย่ออย่างเดียว คำสั้นจึงตัวเล็กกว่าต้นแบบมาก
+    function fit(el, limit, min, max){
       if(!el) return;
       var s = el.firstElementChild || el, g = 0;
       var fs = parseFloat(getComputedStyle(el).fontSize);
-      while(s.getBoundingClientRect().width > limit && fs > min && g < 80){ fs -= 1; el.style.fontSize = fs + 'px'; g++; }
+      var w = s.getBoundingClientRect().width;
+      if (w > 0) { fs = Math.min(max, Math.max(min, fs * limit / w)); el.style.fontSize = fs + 'px'; }
+      while(s.getBoundingClientRect().width > limit && fs > min && g < 120){ fs -= 1; el.style.fontSize = fs + 'px'; g++; }
     }
-    fit(document.querySelector('.hd'), ${W} * 0.78, 20);
-    fit(document.querySelector('.yl'), ${W} * 0.93, 20);
-    fit(document.querySelector('.wt'), ${W} * 0.93, 20);
+    fit(document.querySelector('.hd'), ${W} * 0.74, 20, ${px(96)});
+    fit(document.querySelector('.yl'), ${W} * 0.93, 20, ${px(104)});
+    fit(document.querySelector('.wt'), ${W} * 0.93, 20, ${px(94)});
   })();
 </script>
 </body></html>`;
