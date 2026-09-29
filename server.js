@@ -17,7 +17,7 @@ const app = express();
 app.use(express.json({ limit: '30mb' }));
 
 // เพิ่มเลขนี้ทุกครั้งที่แก้ไฟล์ จะได้เช็กผ่าน /health ว่า deploy ติดหรือยัง
-const BUILD = 'v12.7';
+const BUILD = 'v12.8';
 const AUTH_TOKEN = process.env.RENDER_AUTH_TOKEN || '';
 const PORT = process.env.PORT || 10000;
 
@@ -550,6 +550,47 @@ function buildMiniLeftHtml(payload, W, H) {
   return miniShell(css, body);
 }
 
+// v12.8: mini-tags — ภาพรวมสินค้า · พาดหัว 2 บรรทัด + ป้ายขาวรายสินค้า
+//   เรียงป้ายซ้ายไปขวาตามลำดับสินค้าที่ WF2 ส่งมา น้องต้องเรียงขวดให้ตรงลำดับเดียวกัน
+//   เกิน 3 สินค้า = แยกป้ายเป็นแถวบน+แถวล่าง ไม่เกิน = แถวล่างอย่างเดียว
+function buildMiniTagsHtml(payload, W, H) {
+  const px = function (v) { return Math.round(v * (H / 1254) * 10) / 10; };
+  const sec = miniSections(payload);
+  const hlRaw = String(payload.headline || "");
+  const hl = hlRaw.indexOf("||") >= 0 ? hlRaw.split("||") : [hlRaw, ""];
+  const l1 = str(sec.HL1) || str(hl[0]);
+  const l2 = str(sec.HL2) || str(hl[1]);
+  const tags = str(sec.TAGS).split(";").map(function (x) { return str(x); }).filter(Boolean).slice(0, 6);
+  const half = Math.ceil(tags.length / 2);
+  const topRow = tags.length > 3 ? tags.slice(0, half) : [];
+  const botRow = tags.length > 3 ? tags.slice(half) : tags;
+  const cell = function (t, y, idx, n) {
+    const bits = t.split("|").map(function (x) { return str(x); }).filter(Boolean);
+    const x = ((idx + 0.5) / n) * 100;
+    let h = "<div class=tag style=left:" + x.toFixed(1) + "%;top:" + y + "%>";
+    h += "<div class=tm>" + esc(bits[0] || "") + "</div>";
+    if (bits[1]) h += "<div class=ts>" + esc(bits[1]) + "</div>";
+    return h + "</div>";
+  };
+  let css = miniBase(payload, W, H, px);
+  css += ".l1{position:absolute;left:50%;top:3.4%;transform:translateX(-50%);text-align:center;";
+  css += "white-space:nowrap;font-size:" + px(74) + "px;font-weight:700;color:#141414;";
+  css += "text-shadow:" + spotRing(0.085, "#FFFFFF") + ";z-index:3}";
+  css += ".l2{position:absolute;left:50%;top:11.2%;transform:translateX(-50%);max-width:93%;";
+  css += "text-align:center;padding:" + px(10) + "px " + px(30) + "px;font-size:" + px(92) + "px;";
+  css += "font-weight:700;color:#111;line-height:1.2;z-index:3}";
+  css += ".tag{position:absolute;transform:translateX(-50%);text-align:center;max-width:30%;";
+  css += "padding:" + px(12) + "px " + px(22) + "px;z-index:3}";
+  css += ".tm{font-size:" + px(40) + "px;font-weight:700;color:#111;line-height:1.15}";
+  css += ".ts{font-size:" + px(34) + "px;font-weight:500;color:#333;line-height:1.15}";
+  let body = "";
+  if (l1) body += "<div class=l1>" + esc(l1) + "</div>";
+  if (l2) body += "<div class='l2 card'>" + esc(l2) + "</div>";
+  topRow.forEach(function (t, i) { body += cell(t, 26, i, topRow.length); });
+  botRow.forEach(function (t, i) { body += cell(t, 86.5, i, botRow.length); });
+  return miniShell(css, body);
+}
+
 function buildSpotHtml(payload, W, H) {
   const rd = payload?.renderDirectives || {};
   const K = W / 1122;                       // สเกลจากภาพต้นแบบ
@@ -690,6 +731,7 @@ function buildHtml(payload) {
   if (str(rd.slotPattern) === 'spot-right') return buildSpotHtml(payload, W, H);
   if (str(rd.slotPattern) === 'band-bottom') return buildBandHtml(payload, W, H);
   if (str(rd.slotPattern) === 'mini-left') return buildMiniLeftHtml(payload, W, H);
+  if (str(rd.slotPattern) === 'mini-tags') return buildMiniTagsHtml(payload, W, H);
   // ขนาดตัวอักษรยึดด้านสั้นเสมอ ไม่งั้นภาพ 4:5 ตัวหนังสือจะพองขึ้น 25%
   const S = Math.min(W, H);
 
